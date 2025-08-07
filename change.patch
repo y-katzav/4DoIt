@@ -41,4 +41,3 @@ index 49da3808f7d982a3f88f899b92b1c6f62cfb344d..1e960fe7299a6e1ef4229dd86a27e222
      console.log("Successfully connected to Firebase Emulators.");
  }
  
-
