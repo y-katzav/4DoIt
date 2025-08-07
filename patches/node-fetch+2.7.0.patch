@@ -1,0 +1,259 @@
+diff --git a/node_modules/node-fetch/src/utils/multipart-parser.js b/node_modules/node-fetch/src/utils/multipart-parser.js
+index 588d447..433d71c 100644
+--- a/node_modules/node-fetch/src/utils/multipart-parser.js
++++ b/node_modules/node-fetch/src/utils/multipart-parser.js
+@@ -1,179 +1,180 @@
+-const {Buffer} = require('buffer');
+-
+-const s = Buffer.from('\r\n');
+-
+-class MultipartParser {
+-	constructor(boundary) {
+-		this.boundary = Buffer.from(boundary);
+-		this.boundaryEnd = Buffer.from(boundary + '--');
+-		this.lastline = '';
+-		this.state = 0;
+-		this.info = {
+-			partBegin: 0,
+-			headEnd: 0,
+-			partEnd: 0
+-		};
+-	}
+-
+-	initWith(chunk) {
+-		let begin = chunk.indexOf(this.boundary);
+-		if (begin === -1) {
+-			return;
+-		}
+-
+-		begin += this.boundary.length;
+-		if (chunk[begin] === s[0] && chunk[begin + 1] === s[1]) {
+-			begin += s.length;
+-		}
+-
+-		this.info.partBegin = begin;
+-		this.state = 1;
+-	}
+-
+-	write(chunk) {
+-		const result = [];
+-		let headEnd = -1;
+-		let partEnd = -1;
+-		let current = 0;
+-
+-		if (this.state === 0) {
+-			this.initWith(chunk);
+-			if (this.state === 0) {
+-				return result;
+-			}
+-		}
+-
+-		while (current < chunk.length) {
+-			if (this.state === 1) {
+-				headEnd = this.getHeadEnd(chunk, current);
+-				if (headEnd !== -1) {
+-					this.info.headEnd = headEnd;
+-					this.state = 2;
+-				} else {
+-					current = chunk.length;
+-				}
+-			}
+-
+-			if (this.state === 2) {
+-				partEnd = this.getPartEnd(chunk, current);
+-				if (partEnd !== -1) {
+-					this.info.partEnd = partEnd;
+-					result.push(this.info);
+-					this.info = {
+-						partBegin: partEnd + this.boundary.length + s.length
+-					};
+-					this.state = 1;
+-				} else {
+-					current = chunk.length;
+-				}
+-			}
+-		}
+-
+-		return result;
+-	}
+-
+-	getPartEnd(chunk, current) {
+-		const end = chunk.indexOf(this.boundary, current);
+-		if (end !== -1) {
+-			if (chunk[end - s.length] === s[0] && chunk[end - s.length + 1] === s[1]) {
+-				return end - s.length;
+-			}
+-
+-			return end;
+-		}
+-
+-		return -1;
+-	}
+-
+-	getHeadEnd(chunk, current) {
+-		let headEnd = -1;
+-		while (headEnd === -1 && current < chunk.length) {
+-			headEnd = this.findHeadEnd(chunk, current);
+-			current++;
+-		}
+-
+-		return headEnd;
+-	}
+-
+-	findHeadEnd(chunk, current) {
+-		const end = chunk.indexOf(s, current);
+-
+-		if (end !== -1) {
+-			if (this.lastline === '') {
+-				if (end === current) {
+-					this.lastline = '';
+-					return end + s.length;
+-				}
+-
+-				this.lastline = chunk.toString('ascii', current, end);
+-				return -1;
+-			}
+-
+-			if (end === current) {
+-				return chunk.indexOf(s, this.lastline.length) + s.length;
+-			}
+-
+-			this.lastline = chunk.toString('ascii', current, end);
+-			return -1;
+-		}
+-
+-		return -1;
+-	}
+-}
+-
+-module.exports = MultipartParser;
++const {Buffer} = require('buffer');
++
++const s = Buffer.from('\r\n');
++const s_s = Buffer.from('\r\n\r\n');
++
++class MultipartParser {
++  constructor(boundary) {
++    this.boundary = Buffer.from(boundary);
++    this.boundaryEnd = Buffer.from(boundary + '--');
++    this.lastline = '';
++    this.state = 0;
++    this.info = {
++      partBegin: 0,
++      headEnd: 0,
++      partEnd: 0
++    };
++  }
++
++  initWith(chunk) {
++    let begin = chunk.indexOf(this.boundary);
++    if (begin === -1) {
++      return;
++    }
++
++    begin += this.boundary.length;
++    if (chunk[begin] === s[0] && chunk[begin + 1] === s[1]) {
++      begin += s.length;
++    }
++
++    this.info.partBegin = begin;
++    this.state = 1;
++  }
++
++  write(chunk) {
++    const result = [];
++    let headEnd = -1;
++    let partEnd = -1;
++    let current = 0;
++
++    if (this.state === 0) {
++      this.initWith(chunk);
++      if (this.state === 0) {
++        return result;
++      }
++    }
++
++    while (current < chunk.length) {
++      if (this.state === 1) {
++        headEnd = this.getHeadEnd(chunk, current);
++        if (headEnd !== -1) {
++          this.info.headEnd = headEnd;
++          this.state = 2;
++        } else {
++          current = chunk.length;
++        }
++      }
++
++      if (this.state === 2) {
++        partEnd = this.getPartEnd(chunk, current);
++        if (partEnd !== -1) {
++          this.info.partEnd = partEnd;
++          result.push(this.info);
++          this.info = {
++            partBegin: partEnd + this.boundary.length + s.length
++          };
++          this.state = 1;
++        } else {
++          current = chunk.length;
++        }
++      }
++    }
++
++    return result;
++  }
++
++  getPartEnd(chunk, current) {
++    const end = chunk.indexOf(this.boundary, current);
++    if (end !== -1) {
++      if (chunk[end - s.length] === s[0] && chunk[end - s.length + 1] === s[1]) {
++        return end - s.length;
++      }
++
++      return end;
++    }
++
++    return -1;
++  }
++
++  getHeadEnd(chunk, current) {
++    const end = chunk.indexOf(s_s, current);
++    if (end !== -1) {
++      return end + s_s.length;
++    }
++
++    return -1;
++    // let headEnd = -1;
++    // while (headEnd === -1 && current < chunk.length) {
++    // 	headEnd = this.findHeadEnd(chunk, current);
++    // 	current++;
++    // }
++    // return headEnd;
++  }
++
++  findHeadEnd(chunk, current) {
++    const end = chunk.indexOf(s, current);
++
++    if (end !== -1) {
++      if (this.lastline === '') {
++        if (end === current) {
++          this.lastline = '';
++          return end + s.length;
++        }
++
++        this.lastline = chunk.toString('ascii', current, end);
++        return -1;
++      }
++
++      if (end === current) {
++        return chunk.indexOf(s, this.lastline.length) + s.length;
++      }
++
++      this.lastline = chunk.toString('ascii', current, end);
++      return -1;
++    }
++
++    return -1;
++  }
++}
++
++module.exports = MultipartParser;

@@ -1,0 +1,72 @@
+// Firestore Security Rules Explanation and Fix Proposal
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper function to verify if user is signed in
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    match /boards/{boardId} {
+      // Allow reading boards only if user is owner or has a role
+      allow get, list: if isSignedIn() && (
+        resource.data.ownerId == request.auth.uid ||
+        (resource.data.members is map && resource.data.members[request.auth.uid] in ['viewer', 'editor'])
+      );
+
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+
+      allow update, delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+
+      match /tasks/{taskId} {
+        allow read: if isSignedIn() && (
+          resource.data.ownerId == request.auth.uid ||
+          (resource.parent.data.members is map && resource.parent.data.members[request.auth.uid] in ['viewer', 'editor'])
+        );
+        allow create, update, delete: if isSignedIn() && (
+          resource.data.ownerId == request.auth.uid ||
+          (resource.parent.data.members is map && resource.parent.data.members[request.auth.uid] == 'editor')
+        );
+      }
+
+      match /categories/{categoryId} {
+        allow read: if isSignedIn() && (
+          resource.data.ownerId == request.auth.uid ||
+          (resource.parent.data.members is map && resource.parent.data.members[request.auth.uid] in ['viewer', 'editor'])
+        );
+        allow create, update, delete: if isSignedIn() && (
+          resource.data.ownerId == request.auth.uid ||
+          (resource.parent.data.members is map && resource.parent.data.members[request.auth.uid] == 'editor')
+        );
+      }
+    }
+
+    // Allow read/write invitations if the user is the sender or recipient
+    match /boardInvitations/{invitationId} {
+      allow create: if isSignedIn();
+      allow read: if isSignedIn() && (
+        resource.data.senderUid == request.auth.uid ||
+        resource.data.recipientEmail == request.auth.token.email
+      );
+      allow update: if isSignedIn() && (
+        resource.data.recipientEmail == request.auth.token.email
+      );
+      allow delete: if isSignedIn() && (
+        resource.data.senderUid == request.auth.uid
+      );
+    }
+
+    // Support for listing shared boards via user boardMemberships
+    match /users/{userId}/boardMemberships/{boardId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Optional: Notifications (if used)
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && resource.data.recipientUid == request.auth.uid;
+      allow create: if isSignedIn();
+    }
+  }
+}
