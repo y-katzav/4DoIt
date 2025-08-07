@@ -9,7 +9,7 @@ const firebaseConfig = {
   projectId: "taskflow-cw8ac",
   appId: "1:122132247972:web:b80c1534f978b72998fd31",
   storageBucket: "taskflow-cw8ac.firebasestorage.app",
-  apiKey: "AIzaSyCU17Pv19z7hZ9y8ft1Wdbt39F4OC5Q97s",
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: "taskflow-cw8ac.firebaseapp.com",
   messagingSenderId: "122132247972"
 };
