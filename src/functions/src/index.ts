@@ -18,7 +18,7 @@ interface BoardInvitationData {
   senderUid: string;
   recipientEmail: string;
   role: string;
-  status: 'pending' | 'accepted' | 'rejected' | 'expired';
+  status: 'pending' | 'accepted' | 'declined' | 'expired';
   createdAt: admin.firestore.Timestamp;
   expiresAt?: admin.firestore.Timestamp;
   boardName: string;
