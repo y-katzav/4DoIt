@@ -107,17 +107,30 @@ export async function getBoardMembers(boardId: string): Promise<BoardMember[]> {
   const memberRoles = boardData.members || {};
 
   const memberUids = [ownerId, ...Object.keys(memberRoles)];
-  const usersQuery = query(collection(db, 'users'), where(documentId(), 'in', memberUids));
-  const usersSnapshot = await getDocs(usersQuery);
 
-  return usersSnapshot.docs.map(userDoc => {
-    const uid = userDoc.id;
-    const email = userDoc.data().email;
-    let role: BoardRole = 'viewer';
-    if (uid === ownerId) role = 'owner';
-    else if (memberRoles[uid]) role = memberRoles[uid];
-    return { uid, email, role };
-  });
+  // Firestore 'in' queries support a maximum of 10 items, so chunk the
+  // member list to avoid runtime errors when boards have many members.
+  const uidChunks: string[][] = [];
+  for (let i = 0; i < memberUids.length; i += 10) {
+    uidChunks.push(memberUids.slice(i, i + 10));
+  }
+
+  const userSnapshots = await Promise.all(
+    uidChunks.map(chunk =>
+      getDocs(query(collection(db, 'users'), where(documentId(), 'in', chunk)))
+    )
+  );
+
+  return userSnapshots.flatMap(snapshot =>
+    snapshot.docs.map(userDoc => {
+      const uid = userDoc.id;
+      const email = userDoc.data().email;
+      let role: BoardRole = 'viewer';
+      if (uid === ownerId) role = 'owner';
+      else if (memberRoles[uid]) role = memberRoles[uid];
+      return { uid, email, role };
+    })
+  );
 }
 
 // ⚙️ Board Management
