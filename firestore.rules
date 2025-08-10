@@ -22,23 +22,27 @@ service cloud.firestore {
 
       match /tasks/{taskId} {
         allow read: if isSignedIn() && (
-          resource.data.ownerId == request.auth.uid ||
-          (resource.parent.data.members is map && resource.parent.data.members[request.auth.uid] in ['viewer', 'editor'])
+          get(/databases/$(database)/documents/boards/$(boardId)).data.ownerId == request.auth.uid ||
+          (get(/databases/$(database)/documents/boards/$(boardId)).data.members is map &&
+            get(/databases/$(database)/documents/boards/$(boardId)).data.members[request.auth.uid] in ['viewer', 'editor'])
         );
         allow create, update, delete: if isSignedIn() && (
-          resource.data.ownerId == request.auth.uid ||
-          (resource.parent.data.members is map && resource.parent.data.members[request.auth.uid] == 'editor')
+          get(/databases/$(database)/documents/boards/$(boardId)).data.ownerId == request.auth.uid ||
+          (get(/databases/$(database)/documents/boards/$(boardId)).data.members is map &&
+            get(/databases/$(database)/documents/boards/$(boardId)).data.members[request.auth.uid] == 'editor')
         );
       }
 
       match /categories/{categoryId} {
         allow read: if isSignedIn() && (
-          resource.data.ownerId == request.auth.uid ||
-          (resource.parent.data.members is map && resource.parent.data.members[request.auth.uid] in ['viewer', 'editor'])
+          get(/databases/$(database)/documents/boards/$(boardId)).data.ownerId == request.auth.uid ||
+          (get(/databases/$(database)/documents/boards/$(boardId)).data.members is map &&
+            get(/databases/$(database)/documents/boards/$(boardId)).data.members[request.auth.uid] in ['viewer', 'editor'])
         );
         allow create, update, delete: if isSignedIn() && (
-          resource.data.ownerId == request.auth.uid ||
-          (resource.parent.data.members is map && resource.parent.data.members[request.auth.uid] == 'editor')
+          get(/databases/$(database)/documents/boards/$(boardId)).data.ownerId == request.auth.uid ||
+          (get(/databases/$(database)/documents/boards/$(boardId)).data.members is map &&
+            get(/databases/$(database)/documents/boards/$(boardId)).data.members[request.auth.uid] == 'editor')
         );
       }
     }
