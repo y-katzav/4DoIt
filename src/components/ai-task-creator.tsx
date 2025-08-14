@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { createTasksFromPrompt, CreateTasksFromPromptOutput } from '@/ai/flows/create-tasks-from-prompt';
+import { CreateTasksFromPromptOutput } from '@/ai/flows/create-tasks-from-prompt';
 
 interface AiTaskCreatorProps {
     onCreateTasks: (result: CreateTasksFromPromptOutput) => Promise<void>;
@@ -23,7 +23,19 @@ export function AiTaskCreator({ onCreateTasks }: AiTaskCreatorProps) {
 
         startGenerationTransition(async () => {
             try {
-                const result = await createTasksFromPrompt({ prompt });
+                const response = await fetch('/api/ai/create-tasks', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ prompt }),
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const result: CreateTasksFromPromptOutput = await response.json();
                 await onCreateTasks(result);
                 setPrompt('');
             } catch (error) {

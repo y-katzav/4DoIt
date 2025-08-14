@@ -73,27 +73,46 @@ export async function getOwnedBoards(userId: string): Promise<Board[]> {
 
 export async function getSharedBoards(userId: string): Promise<{ board: Board, role: BoardRole }[]> {
   console.log('[getSharedBoards] called with userId:', userId);
-  const sharedBoardsRef = collection(db, `users/${userId}/boardMemberships`);
-  const sharedBoardsSnap = await getDocs(sharedBoardsRef);
+  
+  try {
+    const sharedBoardsRef = collection(db, `users/${userId}/boardMemberships`);
+    console.log('[getSharedBoards] querying collection path:', `users/${userId}/boardMemberships`);
+    
+    const sharedBoardsSnap = await getDocs(sharedBoardsRef);
+    console.log('[getSharedBoards] query result - empty:', sharedBoardsSnap.empty, 'size:', sharedBoardsSnap.size);
 
-  if (sharedBoardsSnap.empty) return [];
-
-  const boardDataPromises = sharedBoardsSnap.docs.map(async (docSnap) => {
-    const membership = docSnap.data();
-    const boardDocRef = doc(db, 'boards', docSnap.id);
-    const boardDocSnap = await getDoc(boardDocRef);
-
-    if (boardDocSnap.exists()) {
-      return {
-        board: { id: boardDocSnap.id, ...boardDocSnap.data() } as Board,
-        role: membership.role as BoardRole,
-      };
+    if (sharedBoardsSnap.empty) {
+      console.log('[getSharedBoards] no shared boards found, returning empty array');
+      return [];
     }
-    return null;
-  });
 
-  const results = await Promise.all(boardDataPromises);
-  return results.filter((r): r is { board: Board; role: BoardRole } => r !== null);
+    const boardDataPromises = sharedBoardsSnap.docs.map(async (docSnap) => {
+      const membership = docSnap.data();
+      console.log('[getSharedBoards] processing membership for board:', docSnap.id, 'role:', membership.role);
+      
+      const boardDocRef = doc(db, 'boards', docSnap.id);
+      const boardDocSnap = await getDoc(boardDocRef);
+
+      if (boardDocSnap.exists()) {
+        console.log('[getSharedBoards] board found:', docSnap.id);
+        return {
+          board: { id: boardDocSnap.id, ...boardDocSnap.data() } as Board,
+          role: membership.role as BoardRole,
+        };
+      } else {
+        console.log('[getSharedBoards] board not found:', docSnap.id);
+      }
+      return null;
+    });
+
+    const results = await Promise.all(boardDataPromises);
+    const filteredResults = results.filter((r): r is { board: Board; role: BoardRole } => r !== null);
+    console.log('[getSharedBoards] final results count:', filteredResults.length);
+    return filteredResults;
+  } catch (error) {
+    console.error('[getSharedBoards] error:', error);
+    throw error;
+  }
 }
 
 export async function getBoardMembers(boardId: string): Promise<BoardMember[]> {

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getAuth, createUserWithEmailAndPassword, User } from 'firebase/auth';
 import { firebaseApp, db } from '@/lib/firebase';
-import { writeBatch, doc, collection, Timestamp } from 'firebase/firestore';
+import { writeBatch, doc, collection, Timestamp, setDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -14,55 +14,80 @@ import Link from 'next/link';
 import { Logo } from '@/components/logo';
 import { boardIcons } from '@/lib/constants';
 
-const createDefaultData = async (user: User) => {
-  if (!user.email) return;
+/**
+ * Creates default user data, a board, categories, and tasks for a new user.
+ * Throws errors for invalid input or Firestore failures.
+ * Returns the created board ID.
+ */
+const createDefaultData = async (user: User): Promise<string> => {
+  if (!user.email || !user.uid) throw new Error('User email or UID missing.');
 
-  const batch = writeBatch(db);
+  // Validate board icon
+  if (!boardIcons || !boardIcons.length) throw new Error('No board icons available');
 
-  // User document
-  const userRef = doc(db, 'users', user.uid);
-  batch.set(userRef, {
+  // Step 1: Create user document
+  await setDoc(doc(db, 'users', user.uid), {
     email: user.email,
     displayName: user.displayName || user.email.split('@')[0],
     createdAt: Timestamp.now(),
   });
-  
-  // Create default board
+
+  // Step 2: Prepare batch setup
+  const batch = writeBatch(db);
   const boardRef = doc(collection(db, 'boards'));
   batch.set(boardRef, {
     name: 'My Tasks',
     icon: boardIcons[0],
     createdAt: Timestamp.now(),
     ownerId: user.uid,
+    members: { [user.uid]: 'owner' },
   });
 
-  // Default Categories
+  // Categories
   const categories = [
     { name: 'Work', color: 'bg-sky-500' },
     { name: 'Personal', color: 'bg-emerald-500' },
     { name: 'Shopping List', color: 'bg-amber-500' },
   ];
-
   const categoryRefs: { id: string; name: string }[] = [];
+
   categories.forEach(category => {
-      const newCatRef = doc(collection(db, `boards/${boardRef.id}/categories`));
-      batch.set(newCatRef, { ...category, createdAt: Timestamp.now() });
-      categoryRefs.push({ id: newCatRef.id, name: category.name });
+    const newCatRef = doc(collection(db, `boards/${boardRef.id}/categories`));
+    batch.set(newCatRef, { ...category, createdAt: Timestamp.now() });
+    categoryRefs.push({ id: newCatRef.id, name: category.name });
   });
 
-  const getCategoryId = (name: string) => categoryRefs.find(c => c.name === name)?.id || '';
-
-  // Default Tasks
-  const tasks = [
-    { description: 'Prepare presentation for Monday meeting', priority: 'high' as const, dueDate: new Date(new Date().setDate(new Date().getDate() + (8 - new Date().getDay()) % 7)), categoryName: 'Work' },
-    { description: 'Follow up with the design team', priority: 'medium' as const, dueDate: null, categoryName: 'Work' },
-    { description: 'Book a dentist appointment', priority: 'medium' as const, dueDate: null, categoryName: 'Personal' },
-    { description: 'Go for a run', priority: 'low' as const, dueDate: null, categoryName: 'Personal' },
-    { description: 'Milk', priority: 'low' as const, dueDate: null, categoryName: 'Shopping List' },
-    { description: 'Bread', priority: 'low' as const, dueDate: null, categoryName: 'Shopping List' },
-    { description: 'Eggs', priority: 'low' as const, dueDate: null, categoryName: 'Shopping List' },
+  // Tasks
+  type Task = {
+    description: string;
+    priority: 'high' | 'medium' | 'low';
+    dueDate: Date | null;
+    categoryName: string;
+  };
+  const tasks: Task[] = [
+    { description: 'Prepare presentation for Monday meeting', priority: 'high', dueDate: new Date(new Date().setDate(new Date().getDate() + (8 - new Date().getDay()) % 7),), categoryName: 'Work' },
+    { description: 'Follow up with the design team', priority: 'medium', dueDate: null, categoryName: 'Work' },
+    { description: 'Book a dentist appointment', priority: 'medium', dueDate: null, categoryName: 'Personal' },
+    { description: 'Go for a run', priority: 'low', dueDate: null, categoryName: 'Personal' },
+    { description: 'Milk', priority: 'low', dueDate: null, categoryName: 'Shopping List' },
+    { description: 'Bread', priority: 'low', dueDate: null, categoryName: 'Shopping List' },
+    { description: 'Eggs', priority: 'low', dueDate: null, categoryName: 'Shopping List' },
   ];
-  
+
+  // Validate all category names in tasks
+  const validCategoryNames = new Set(categories.map(c => c.name));
+  tasks.forEach(task => {
+    if (!validCategoryNames.has(task.categoryName)) {
+      throw new Error(`Invalid category name in task: ${task.categoryName}`);
+    }
+  });
+
+  const getCategoryId = (name: string) => {
+    const found = categoryRefs.find(c => c.name === name);
+    if (!found) throw new Error(`Category ${name} not found`);
+    return found.id;
+  };
+
   tasks.forEach(task => {
     const taskRef = doc(collection(db, `boards/${boardRef.id}/tasks`));
     batch.set(taskRef, {
@@ -78,9 +103,18 @@ const createDefaultData = async (user: User) => {
     });
   });
 
-  await batch.commit();
-};
+  try {
+    await batch.commit();
+  } catch (err) {
+    // You might want to log with more context, e.g., user UID
+    console.error('Error committing batch for user:', user.uid, err);
+    // Optionally: report to error tracking service
+    throw err;
+  }
 
+  // Return board ID for caller use
+  return boardRef.id;
+};
 
 export default function SignUpPage() {
   const [email, setEmail] = useState('');

@@ -1,53 +1,78 @@
-// Firestore Security Rules Explanation and Fix Proposal
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper function to verify if user is signed in
     function isSignedIn() {
       return request.auth != null;
     }
 
     match /boards/{boardId} {
-      // Allow reading boards only if user is owner or has a role
       allow get, list: if isSignedIn() && (
         resource.data.ownerId == request.auth.uid ||
-        (resource.data.members is map && resource.data.members[request.auth.uid] in ['viewer', 'editor'])
+        (resource.data.members is map && resource.data.members[request.auth.uid] in ['viewer', 'editor', 'owner']) ||
+        // אפשר קריאה אם יש membership ב-users/{uid}/boardMemberships/{boardId}
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)/boardMemberships/$(boardId))
       );
 
-      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow create: if isSignedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && (!('members' in request.resource.data)
+            || request.resource.data.members is map);
 
-      allow update, delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow update, delete: if isSignedIn() && (
+        resource.data.ownerId == request.auth.uid ||
+        (resource.data.members is map && resource.data.members[request.auth.uid] == 'editor')
+      );
 
       match /tasks/{taskId} {
         allow read: if isSignedIn() && (
           get(/databases/$(database)/documents/boards/$(boardId)).data.ownerId == request.auth.uid ||
-          (get(/databases/$(database)/documents/boards/$(boardId)).data.members is map &&
-            get(/databases/$(database)/documents/boards/$(boardId)).data.members[request.auth.uid] in ['viewer', 'editor'])
+          (
+            get(/databases/$(database)/documents/boards/$(boardId)).data.members is map &&
+            get(/databases/$(database)/documents/boards/$(boardId)).data.members[request.auth.uid] in ['viewer', 'editor', 'owner']
+          )
         );
-        allow create, update, delete: if isSignedIn() && (
+        allow create: if isSignedIn() && (
           get(/databases/$(database)/documents/boards/$(boardId)).data.ownerId == request.auth.uid ||
-          (get(/databases/$(database)/documents/boards/$(boardId)).data.members is map &&
-            get(/databases/$(database)/documents/boards/$(boardId)).data.members[request.auth.uid] == 'editor')
+          (
+            get(/databases/$(database)/documents/boards/$(boardId)).data.members is map &&
+            get(/databases/$(database)/documents/boards/$(boardId)).data.members[request.auth.uid] == 'editor'
+          )
+        );
+        allow update, delete: if isSignedIn() && (
+          get(/databases/$(database)/documents/boards/$(boardId)).data.ownerId == request.auth.uid ||
+          (
+            get(/databases/$(database)/documents/boards/$(boardId)).data.members is map &&
+            get(/databases/$(database)/documents/boards/$(boardId)).data.members[request.auth.uid] == 'editor'
+          )
         );
       }
 
       match /categories/{categoryId} {
         allow read: if isSignedIn() && (
           get(/databases/$(database)/documents/boards/$(boardId)).data.ownerId == request.auth.uid ||
-          (get(/databases/$(database)/documents/boards/$(boardId)).data.members is map &&
-            get(/databases/$(database)/documents/boards/$(boardId)).data.members[request.auth.uid] in ['viewer', 'editor'])
+          (
+            get(/databases/$(database)/documents/boards/$(boardId)).data.members is map &&
+            get(/databases/$(database)/documents/boards/$(boardId)).data.members[request.auth.uid] in ['viewer', 'editor', 'owner']
+          )
         );
-        allow create, update, delete: if isSignedIn() && (
+        allow create: if isSignedIn() && (
           get(/databases/$(database)/documents/boards/$(boardId)).data.ownerId == request.auth.uid ||
-          (get(/databases/$(database)/documents/boards/$(boardId)).data.members is map &&
-            get(/databases/$(database)/documents/boards/$(boardId)).data.members[request.auth.uid] == 'editor')
+          (
+            get(/databases/$(database)/documents/boards/$(boardId)).data.members is map &&
+            get(/databases/$(database)/documents/boards/$(boardId)).data.members[request.auth.uid] == 'editor'
+          )
+        );
+        allow update, delete: if isSignedIn() && (
+          get(/databases/$(database)/documents/boards/$(boardId)).data.ownerId == request.auth.uid ||
+          (
+            get(/databases/$(database)/documents/boards/$(boardId)).data.members is map &&
+            get(/databases/$(database)/documents/boards/$(boardId)).data.members[request.auth.uid] == 'editor'
+          )
         );
       }
     }
 
-    // Allow read/write invitations if the user is the sender or recipient
     match /boardInvitations/{invitationId} {
       allow create: if isSignedIn();
       allow read: if isSignedIn() && (
@@ -62,15 +87,15 @@ service cloud.firestore {
       );
     }
 
-    // Support for listing shared boards via user boardMemberships
-    match /users/{userId}/boardMemberships/{boardId} {
+    match /users/{userId} {
+      allow create: if isSignedIn() && request.auth.uid == userId;
       allow read: if isSignedIn() && request.auth.uid == userId;
-    }
-
-    // Optional: Notifications (if used)
-    match /notifications/{notificationId} {
-      allow read: if isSignedIn() && resource.data.recipientUid == request.auth.uid;
-      allow create: if isSignedIn();
+      allow update: if isSignedIn() && request.auth.uid == userId;
+      allow delete: if isSignedIn() && request.auth.uid == userId;
+      
+      match /boardMemberships/{boardId} {
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+      }
     }
   }
 }

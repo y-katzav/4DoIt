@@ -16,6 +16,7 @@ export interface Board {
   icon: string;
   createdAt: Timestamp;
   ownerId: string;
+  members: { [uid: string]: 'owner' | 'editor' | 'viewer' }; // הוסף שורה זו
 }
 
 export interface SharedBoard {

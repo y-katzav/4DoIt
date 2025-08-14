@@ -9,6 +9,7 @@
  */
 import {onCall, HttpsError} from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
+import {initializeApp} from 'firebase-admin/app';
 
 admin.initializeApp();
 const db = admin.firestore();
