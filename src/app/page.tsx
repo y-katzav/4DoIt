@@ -57,6 +57,7 @@ import {
   acceptBoardInvitation,
   declineBoardInvitation,
   getBoardMembers,
+  getUserBoardsViaMemberships,
 } from '@/lib/firestore';
 import { EditBoardDialog } from '@/components/edit-board-dialog';
 import { DynamicIcon } from '@/components/dynamic-icon';
@@ -114,20 +115,49 @@ export default function Home() {
       // בדוק כל פונקציה בנפרד
       let owned = [], shared = [], pendingInvitations = [];
       
+      // נבדק את הגישה החדשה דרך boardMemberships
+      console.log('Testing new boardMemberships approach...');
       try {
-        owned = await getOwnedBoards(user.uid);
-        console.log('getOwnedBoards success:', owned);
+        const allBoardsViaMemberships = await getUserBoardsViaMemberships(user.uid);
+        console.log('getUserBoardsViaMemberships success:', allBoardsViaMemberships);
+        
+        // הפרדה לבעלים ושותפים
+        const ownedViaMemberships = allBoardsViaMemberships
+          .filter(item => item.role === 'owner')
+          .map(item => item.board);
+        const sharedViaMemberships = allBoardsViaMemberships.filter(item => item.role !== 'owner');
+        
+        console.log('Owned via memberships:', ownedViaMemberships.length);
+        console.log('Shared via memberships:', sharedViaMemberships.length);
+        
+        // אם יש נתונים דרך boardMemberships, נשתמש בהם
+        if (allBoardsViaMemberships.length > 0) {
+          owned = ownedViaMemberships;
+          shared = sharedViaMemberships;
+          console.log('Using boardMemberships approach');
+        } else {
+          // אחרת, נשתמש בגישה הישנה
+          console.log('No boardMemberships found, falling back to old approach');
+          throw new Error('No boardMemberships - fallback to old approach');
+        }
       } catch (error) {
-        console.error('getOwnedBoards failed:', error);
-        throw error;
-      }
-      
-      try {
-        shared = await getSharedBoards(user.uid);
-        console.log('getSharedBoards success:', shared);
-      } catch (error) {
-        console.error('getSharedBoards failed:', error);
-        throw error;
+        console.log('boardMemberships approach failed, using old approach:', error);
+        
+        try {
+          owned = await getOwnedBoards(user.uid);
+          console.log('getOwnedBoards success:', owned);
+        } catch (error) {
+          console.error('getOwnedBoards failed:', error);
+          throw error;
+        }
+        
+        try {
+          shared = await getSharedBoards(user.uid);
+          console.log('getSharedBoards success:', shared);
+        } catch (error) {
+          console.error('getSharedBoards failed:', error);
+          throw error;
+        }
       }
       
       try {
@@ -268,8 +298,18 @@ const handleAddBoard = async (boardData: Omit<Board, 'id' | 'createdAt' | 'owner
     createdAt: Timestamp.now(),
     ownerId: user.uid,
     members: { [user.uid]: 'owner' },
+    sharedWith: {}, // יוצר שדה sharedWith ריק
   };
   await setDoc(newBoardRef, newBoardData);
+
+  // שלב 1.5: הוסף מסמך לתת-אוסף boardMemberships של המשתמש
+  const membershipDocRef = doc(db, 'users', user.uid, 'boardMemberships', newBoardRef.id);
+  await setDoc(membershipDocRef, {
+    boardId: newBoardRef.id,
+    boardName: boardData.name,
+    role: 'owner',
+    joinedAt: Timestamp.now(),
+  });
 
   // שלב 2: צור קטגוריות ומשימה (אפשר ב-batch חדש)
   const batch = writeBatch(db);

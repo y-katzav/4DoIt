@@ -25,7 +25,7 @@ const createDefaultData = async (user: User): Promise<string> => {
   // Validate board icon
   if (!boardIcons || !boardIcons.length) throw new Error('No board icons available');
 
-  // Step 1: Create user document
+  // Step 1: Create user document (ללא boardMemberships כי זה תת-אוסף)
   await setDoc(doc(db, 'users', user.uid), {
     email: user.email,
     displayName: user.displayName || user.email.split('@')[0],
@@ -41,6 +41,16 @@ const createDefaultData = async (user: User): Promise<string> => {
     createdAt: Timestamp.now(),
     ownerId: user.uid,
     members: { [user.uid]: 'owner' },
+    sharedWith: {}, // יוצר שדה sharedWith ריק
+  });
+
+  // Step 2.5: Add board membership to user's subcollection
+  const membershipRef = doc(db, 'users', user.uid, 'boardMemberships', boardRef.id);
+  batch.set(membershipRef, {
+    boardId: boardRef.id,
+    boardName: 'My Tasks',
+    role: 'owner',
+    joinedAt: Timestamp.now(),
   });
 
   // Categories

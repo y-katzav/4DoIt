@@ -1,5 +1,13 @@
 {
   "projects": {
     "default": "taskflow-cw8ac"
+  },
+  "targets": {},
+  "etags": {
+    "taskflow-cw8ac": {
+      "extensionInstances": {
+        "firestore-send-email": "a137a4970d51a7ac3935715ca25363b2467e62d0c4bca0725511003894b600c0"
+      }
+    }
   }
 }

@@ -16,7 +16,8 @@ export interface Board {
   icon: string;
   createdAt: Timestamp;
   ownerId: string;
-  members: { [uid: string]: 'owner' | 'editor' | 'viewer' }; // הוסף שורה זו
+  members: { [uid: string]: BoardRole }; // כל המשתמשים כולל הבעלים
+  sharedWith: { [uid: string]: BoardRole }; // רק משתמשים שאינם הבעלים (תמיד קיים, יכול להיות ריק)
 }
 
 export interface SharedBoard {
@@ -53,8 +54,34 @@ export interface BoardInvitation {
     boardId: string;
     boardName: string;
     senderEmail: string;
+    senderUid: string;
     recipientEmail: string;
+    recipientUid?: string; // נוסף לאימות גישה
     role: BoardRole;
     status: InvitationStatus;
     createdAt: Timestamp;
+}
+
+// טיפוס חדש לתוצאת אימות גישה
+export interface BoardAccess {
+  hasAccess: boolean;
+  role: BoardRole | null;
+  source: 'owner' | 'member' | 'sharedWith' | 'invitation' | 'none';
+}
+
+// טיפוס למשתמש (ללא boardMemberships כי זה תת-אוסף)
+export interface User {
+  id: string;
+  email: string;
+  displayName?: string;
+  createdAt: Timestamp;
+}
+
+// טיפוס עבור מסמך בתת-אוסף boardMemberships
+export interface BoardMembershipDoc {
+  boardId: string;
+  boardName: string;
+  role: BoardRole;
+  joinedAt: Timestamp;
+  updatedAt?: Timestamp;
 }

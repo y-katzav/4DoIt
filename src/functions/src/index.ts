@@ -85,7 +85,7 @@ export const shareBoard = onCall(async (request) => {
   
   if (!userQuery.empty) {
       const recipientUid = userQuery.docs[0].id;
-      const membershipDoc = await db.collection(`users/${recipientUid}/boardMemberships`).doc(boardId).get();
+      const membershipDoc = await db.collection('users').doc(recipientUid).collection('boardMemberships').doc(boardId).get();
       if (membershipDoc.exists) {
           throw new HttpsError(
               'already-exists',
@@ -164,15 +164,23 @@ export const acceptBoardInvitation = onCall(async (request) => {
 
   
   const userRef = db.collection('users').doc(request.auth.uid);
+  const boardRef = db.collection('boards').doc(invitationData.boardId);
 
   const batch = db.batch();
   
-  const sharedBoardRef = userRef.collection('boardMemberships').doc(invitationData.boardId);
-  batch.set(sharedBoardRef, {
-      boardName: invitationData.boardName,
-      role: invitationData.role,
+  // הוספת מסמך בתת-אוסף boardMemberships של המשתמש
+  const membershipRef = userRef.collection('boardMemberships').doc(invitationData.boardId);
+  batch.set(membershipRef, {
+    boardId: invitationData.boardId,
+    boardName: invitationData.boardName,
+    role: invitationData.role,
+    joinedAt: admin.firestore.Timestamp.now(),
   });
 
+  // עדכון sharedWith של הלוח
+  batch.update(boardRef, {
+    [`sharedWith.${request.auth.uid}`]: invitationData.role,
+  });
 
   batch.update(invitationRef, {status: 'accepted'});
 

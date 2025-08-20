@@ -3,11 +3,11 @@
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getStorage } from 'firebase/storage';
-import { getFirestore, collection, query, where, getDocs, doc, updateDoc, writeBatch, getDoc, deleteDoc, documentId } from 'firebase/firestore';
+import { getFirestore, collection, query, where, getDocs, doc, updateDoc, writeBatch, getDoc, deleteDoc, documentId, setDoc, Timestamp } from 'firebase/firestore';
 import { deleteField } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getAuth } from 'firebase/auth';
-import type { Board, BoardMember, BoardRole, BoardInvitation } from './types';
+import type { Board, BoardMember, BoardRole, BoardInvitation, BoardAccess, User } from './types';
 
 const firebaseConfig = {
   projectId: 'taskflow-cw8ac',
@@ -89,6 +89,12 @@ export async function getSharedBoards(userId: string): Promise<{ board: Board, r
     const boardDataPromises = sharedBoardsSnap.docs.map(async (docSnap) => {
       const membership = docSnap.data();
       console.log('[getSharedBoards] processing membership for board:', docSnap.id, 'role:', membership.role);
+      
+      // סנן רק לוחות שהמשתמש לא הבעלים שלהם
+      if (membership.role === 'owner') {
+        console.log('[getSharedBoards] skipping owned board:', docSnap.id);
+        return null;
+      }
       
       const boardDocRef = doc(db, 'boards', docSnap.id);
       const boardDocSnap = await getDoc(boardDocRef);
@@ -213,4 +219,144 @@ export async function getPendingInvitations(userEmail: string): Promise<BoardInv
   );
   const snapshot = await getDocs(q);
   return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as BoardInvitation));
+}
+
+// 📥 New Board Query Implementation via boardMemberships
+
+/**
+ * שליפת כל הלוחות של המשתמש דרך boardMemberships
+ * גישה יעילה יותר - מתחילה מהמשתמש במקום לחפש בכל הלוחות
+ */
+export async function getUserBoardsViaMemberships(userId: string): Promise<{ board: Board, role: BoardRole }[]> {
+  console.log('[getUserBoardsViaMemberships] called with userId:', userId);
+  
+  // בדיקת פרמטרים
+  if (!userId || typeof userId !== 'string') {
+    throw new Error('Invalid userId provided');
+  }
+  
+  try {
+    // שלב 1: שליפת תת-אוסף boardMemberships של המשתמש
+    const membershipQuery = query(collection(db, 'users', userId, 'boardMemberships'));
+    const membershipSnapshot = await getDocs(membershipQuery);
+    
+    console.log('[getUserBoardsViaMemberships] found boardMemberships:', membershipSnapshot.size);
+    
+    if (membershipSnapshot.empty) {
+      console.log('[getUserBoardsViaMemberships] no board memberships found');
+      return [];
+    }
+    
+    // שלב 2: איסוף board IDs ותפקידים עם בדיקות
+    const boardMemberships: { [boardId: string]: BoardRole } = {};
+    membershipSnapshot.docs.forEach(doc => {
+      const data = doc.data();
+      // בדיקה שקיים role ושהוא תקין
+      if (data.role && ['owner', 'editor', 'viewer'].includes(data.role)) {
+        boardMemberships[doc.id] = data.role as BoardRole;
+      } else {
+        console.warn('[getUserBoardsViaMemberships] invalid role for board:', doc.id, 'role:', data.role);
+      }
+    });
+    
+    // שלב 3: שליפת פרטי הלוחות
+    const boardIds = Object.keys(boardMemberships);
+    if (boardIds.length === 0) {
+      console.log('[getUserBoardsViaMemberships] no valid board memberships found');
+      return [];
+    }
+    
+    const results: { board: Board, role: BoardRole }[] = [];
+    
+    // Firestore 'in' queries support max 10 items, so chunk if needed
+    const chunks: string[][] = [];
+    for (let i = 0; i < boardIds.length; i += 10) {
+      chunks.push(boardIds.slice(i, i + 10));
+    }
+    
+    for (const chunk of chunks) {
+      if (chunk.length === 0) continue; // דילוג על חלקים ריקים
+      
+      const boardsQuery = query(
+        collection(db, 'boards'),
+        where(documentId(), 'in', chunk)
+      );
+      
+      const boardsSnapshot = await getDocs(boardsQuery);
+      console.log('[getUserBoardsViaMemberships] fetched', boardsSnapshot.size, 'boards for chunk');
+      
+      boardsSnapshot.docs.forEach(boardDoc => {
+        const boardData = boardDoc.data();
+        // בדיקה שנתוני הלוח תקינים
+        if (boardData && boardData.name && boardData.icon) {
+          const board = { id: boardDoc.id, ...boardData } as Board;
+          const role = boardMemberships[boardDoc.id];
+          
+          console.log('[getUserBoardsViaMemberships] board:', board.name, 'role:', role);
+          results.push({ board, role });
+        } else {
+          console.warn('[getUserBoardsViaMemberships] invalid board data for:', boardDoc.id);
+        }
+      });
+    }
+    
+    console.log('[getUserBoardsViaMemberships] returning', results.length, 'boards total');
+    return results;
+    
+  } catch (error) {
+    console.error('[getUserBoardsViaMemberships] error:', error);
+    // זרוק שגיאה מפורטת יותר
+    if (error instanceof Error) {
+      throw new Error(`Failed to get user boards: ${error.message}`);
+    }
+    throw new Error('Unexpected error getting user boards');
+  }
+}
+
+/**
+ * שליפת לוחות בבעלות המשתמש (via boardMemberships)
+ */
+export async function getOwnedBoardsViaMemberships(userId: string): Promise<Board[]> {
+  console.log('[getOwnedBoardsViaMemberships] called with userId:', userId);
+  const allBoards = await getUserBoardsViaMemberships(userId);
+  const ownedBoards = allBoards
+    .filter(item => item.role === 'owner')
+    .map(item => item.board);
+  console.log('[getOwnedBoardsViaMemberships] found', ownedBoards.length, 'owned boards');
+  return ownedBoards;
+}
+
+/**
+ * שליפת לוחות שהמשתמש חבר בהם (לא בעלים) (via boardMemberships)
+ */
+export async function getSharedBoardsViaMemberships(userId: string): Promise<{ board: Board, role: BoardRole }[]> {
+  console.log('[getSharedBoardsViaMemberships] called with userId:', userId);
+  const allBoards = await getUserBoardsViaMemberships(userId);
+  const sharedBoards = allBoards.filter(item => item.role !== 'owner');
+  console.log('[getSharedBoardsViaMemberships] found', sharedBoards.length, 'shared boards');
+  return sharedBoards;
+}
+
+/**
+ * עדכון boardMemberships של המשתמש כאשר נוסף ללוח או השתנה תפקידו
+ */
+export async function updateUserBoardMembership(userId: string, boardId: string, role: BoardRole, boardName?: string): Promise<void> {
+  console.log('[updateUserBoardMembership] called with:', { userId, boardId, role, boardName });
+  const membershipDocRef = doc(db, 'users', userId, 'boardMemberships', boardId);
+  await setDoc(membershipDocRef, {
+    boardName: boardName || '',
+    role,
+    updatedAt: Timestamp.now(),
+  });
+  console.log('[updateUserBoardMembership] updated membership');
+}
+
+/**
+ * הסרת boardMembership של המשתמש כאשר הוסר מהלוח
+ */
+export async function removeUserBoardMembership(userId: string, boardId: string): Promise<void> {
+  console.log('[removeUserBoardMembership] called with:', { userId, boardId });
+  const membershipDocRef = doc(db, 'users', userId, 'boardMemberships', boardId);
+  await deleteDoc(membershipDocRef);
+  console.log('[removeUserBoardMembership] removed membership');
 }

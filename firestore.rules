@@ -6,70 +6,51 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    match /boards/{boardId} {
-      allow get, list: if isSignedIn() && (
-        resource.data.ownerId == request.auth.uid ||
-        (resource.data.members is map && resource.data.members[request.auth.uid] in ['viewer', 'editor', 'owner']) ||
-        // אפשר קריאה אם יש membership ב-users/{uid}/boardMemberships/{boardId}
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)/boardMemberships/$(boardId))
+    // פונקציה לבדיקת גישה ללוח
+    function hasboardAccess(boardData) {
+      return isSignedIn() && (
+        boardData.ownerId == request.auth.uid ||
+        (boardData.members is map && boardData.members[request.auth.uid] in ['viewer', 'editor', 'owner']) ||
+        (boardData.sharedWith is map && boardData.sharedWith[request.auth.uid] in ['viewer', 'editor', 'owner']) ||
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)/boardMemberships/$(resource.id))
       );
+    }
+
+    // פונקציה לבדיקת הרשאת עריכה ללוח
+    function canEditBoard(boardData) {
+      return isSignedIn() && (
+        boardData.ownerId == request.auth.uid ||
+        (boardData.members is map && boardData.members[request.auth.uid] == 'editor') ||
+        (boardData.sharedWith is map && boardData.sharedWith[request.auth.uid] == 'editor') ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)/boardMemberships/$(resource.id)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)/boardMemberships/$(resource.id)).data.role in ['editor', 'owner'])
+      );
+    }
+
+    match /boards/{boardId} {
+      allow get, list: if hasboardAccess(resource.data);
 
       allow create: if isSignedIn()
         && request.resource.data.ownerId == request.auth.uid
-        && (!('members' in request.resource.data)
-            || request.resource.data.members is map);
+        && (!('members' in request.resource.data) || request.resource.data.members is map)
+        && (!('sharedWith' in request.resource.data) || request.resource.data.sharedWith is map);
 
-      allow update, delete: if isSignedIn() && (
-        resource.data.ownerId == request.auth.uid ||
-        (resource.data.members is map && resource.data.members[request.auth.uid] == 'editor')
-      );
+      allow update, delete: if canEditBoard(resource.data);
 
       match /tasks/{taskId} {
-        allow read: if isSignedIn() && (
-          get(/databases/$(database)/documents/boards/$(boardId)).data.ownerId == request.auth.uid ||
-          (
-            get(/databases/$(database)/documents/boards/$(boardId)).data.members is map &&
-            get(/databases/$(database)/documents/boards/$(boardId)).data.members[request.auth.uid] in ['viewer', 'editor', 'owner']
-          )
-        );
-        allow create: if isSignedIn() && (
-          get(/databases/$(database)/documents/boards/$(boardId)).data.ownerId == request.auth.uid ||
-          (
-            get(/databases/$(database)/documents/boards/$(boardId)).data.members is map &&
-            get(/databases/$(database)/documents/boards/$(boardId)).data.members[request.auth.uid] == 'editor'
-          )
-        );
-        allow update, delete: if isSignedIn() && (
-          get(/databases/$(database)/documents/boards/$(boardId)).data.ownerId == request.auth.uid ||
-          (
-            get(/databases/$(database)/documents/boards/$(boardId)).data.members is map &&
-            get(/databases/$(database)/documents/boards/$(boardId)).data.members[request.auth.uid] == 'editor'
-          )
-        );
+        allow read: if hasboardAccess(get(/databases/$(database)/documents/boards/$(boardId)).data);
+        
+        allow create: if canEditBoard(get(/databases/$(database)/documents/boards/$(boardId)).data);
+        
+        allow update, delete: if canEditBoard(get(/databases/$(database)/documents/boards/$(boardId)).data);
       }
 
       match /categories/{categoryId} {
-        allow read: if isSignedIn() && (
-          get(/databases/$(database)/documents/boards/$(boardId)).data.ownerId == request.auth.uid ||
-          (
-            get(/databases/$(database)/documents/boards/$(boardId)).data.members is map &&
-            get(/databases/$(database)/documents/boards/$(boardId)).data.members[request.auth.uid] in ['viewer', 'editor', 'owner']
-          )
-        );
-        allow create: if isSignedIn() && (
-          get(/databases/$(database)/documents/boards/$(boardId)).data.ownerId == request.auth.uid ||
-          (
-            get(/databases/$(database)/documents/boards/$(boardId)).data.members is map &&
-            get(/databases/$(database)/documents/boards/$(boardId)).data.members[request.auth.uid] == 'editor'
-          )
-        );
-        allow update, delete: if isSignedIn() && (
-          get(/databases/$(database)/documents/boards/$(boardId)).data.ownerId == request.auth.uid ||
-          (
-            get(/databases/$(database)/documents/boards/$(boardId)).data.members is map &&
-            get(/databases/$(database)/documents/boards/$(boardId)).data.members[request.auth.uid] == 'editor'
-          )
-        );
+        allow read: if hasboardAccess(get(/databases/$(database)/documents/boards/$(boardId)).data);
+        
+        allow create: if canEditBoard(get(/databases/$(database)/documents/boards/$(boardId)).data);
+        
+        allow update, delete: if canEditBoard(get(/databases/$(database)/documents/boards/$(boardId)).data);
       }
     }
 
