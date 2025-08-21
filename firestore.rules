@@ -70,12 +70,18 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow create: if isSignedIn() && request.auth.uid == userId;
+      
+      // קריאה מותרת רק למשתמש עצמו
       allow read: if isSignedIn() && request.auth.uid == userId;
+      
       allow update: if isSignedIn() && request.auth.uid == userId;
       allow delete: if isSignedIn() && request.auth.uid == userId;
       
       match /boardMemberships/{boardId} {
         allow read, write: if isSignedIn() && request.auth.uid == userId;
+        // אפשר קריאה גם למשתמשים שהם חברים בלוח (viewer/editor)
+        allow read: if isSignedIn() && exists(/databases/$(database)/documents/boards/$(boardId)) &&
+          hasboardAccess(get(/databases/$(database)/documents/boards/$(boardId)).data);
       }
     }
   }

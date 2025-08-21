@@ -29,6 +29,7 @@ const functions = getFunctions(firebaseApp);
 const shareBoardCallable = httpsCallable(functions, 'shareBoard');
 const acceptBoardInvitationCallable = httpsCallable<{ invitationId: string }, void>(functions, 'acceptBoardInvitation');
 const declineBoardInvitationCallable = httpsCallable<{ invitationId: string }, void>(functions, 'declineBoardInvitation');
+const getBoardMembersCallable = httpsCallable<{ boardId: string }, { members: BoardMember[] }>(functions, 'getBoardMembers');
 
 export async function shareBoardViaFunction(boardId: string, recipientEmail: string, role: BoardRole): Promise<void> {
   console.log('[shareBoardViaFunction] called with:', { boardId, recipientEmail, role });
@@ -123,39 +124,18 @@ export async function getSharedBoards(userId: string): Promise<{ board: Board, r
 
 export async function getBoardMembers(boardId: string): Promise<BoardMember[]> {
   console.log('[getBoardMembers] called with boardId:', boardId);
-  const boardDocRef = doc(db, 'boards', boardId);
-  const boardDocSnap = await getDoc(boardDocRef);
-  if (!boardDocSnap.exists()) return [];
-
-  const boardData = boardDocSnap.data();
-  const ownerId = boardData.ownerId;
-  const memberRoles = boardData.members || {};
-
-  const memberUids = [ownerId, ...Object.keys(memberRoles)];
-
-  // Firestore 'in' queries support a maximum of 10 items, so chunk the
-  // member list to avoid runtime errors when boards have many members.
-  const uidChunks: string[][] = [];
-  for (let i = 0; i < memberUids.length; i += 10) {
-    uidChunks.push(memberUids.slice(i, i + 10));
+  
+  try {
+    const result = await getBoardMembersCallable({ boardId });
+    console.log('[getBoardMembers] Cloud Function returned', result.data.members.length, 'members');
+    return result.data.members;
+  } catch (error: unknown) {
+    console.error('[getBoardMembers] Cloud Function error:', error);
+    
+    // במקרה של שגיאה, נחזיר רשימה ריקה במקום לזרוק שגיאה
+    // כך האפליקציה לא תיקרס אלא פשוט תציג לוח ללא חברים
+    return [];
   }
-
-  const userSnapshots = await Promise.all(
-    uidChunks.map(chunk =>
-      getDocs(query(collection(db, 'users'), where(documentId(), 'in', chunk)))
-    )
-  );
-
-  return userSnapshots.flatMap(snapshot =>
-    snapshot.docs.map(userDoc => {
-      const uid = userDoc.id;
-      const email = userDoc.data().email;
-      let role: BoardRole = 'viewer';
-      if (uid === ownerId) role = 'owner';
-      else if (memberRoles[uid]) role = memberRoles[uid];
-      return { uid, email, role };
-    })
-  );
 }
 
 // ⚙️ Board Management
