@@ -30,6 +30,7 @@ const shareBoardCallable = httpsCallable(functions, 'shareBoard');
 const acceptBoardInvitationCallable = httpsCallable<{ invitationId: string }, void>(functions, 'acceptBoardInvitation');
 const declineBoardInvitationCallable = httpsCallable<{ invitationId: string }, void>(functions, 'declineBoardInvitation');
 const getBoardMembersCallable = httpsCallable<{ boardId: string }, { members: BoardMember[] }>(functions, 'getBoardMembers');
+const deleteBoardCallable = httpsCallable<{ boardId: string }, { success: boolean; message: string }>(functions, 'deleteBoard');
 
 export async function shareBoardViaFunction(boardId: string, recipientEmail: string, role: BoardRole): Promise<void> {
   console.log('[shareBoardViaFunction] called with:', { boardId, recipientEmail, role });
@@ -150,22 +151,15 @@ export async function updateBoardDetails(boardId: string, newName: string, newIc
 
 export async function deleteBoard(boardId: string): Promise<void> {
   console.log('[deleteBoard] called with boardId:', boardId);
-  const batch = writeBatch(db);
-  const boardDoc = await getDoc(doc(db, 'boards', boardId));
-
-  if (boardDoc.exists()) {
-    const boardData = boardDoc.data();
-    const memberUids = Object.keys(boardData.members || {});
-    const allUids = [boardData.ownerId, ...memberUids];
-    allUids.forEach(uid => {
-      const membershipRef = doc(db, `users/${uid}/boardMemberships`, boardId);
-      batch.delete(membershipRef);
-    });
+  
+  try {
+    const result = await deleteBoardCallable({ boardId });
+    console.log('[deleteBoard] Cloud Function success:', result.data.message);
+  } catch (error: unknown) {
+    console.error('[deleteBoard] Cloud Function error:', error);
+    if (error instanceof Error) throw error;
+    throw new Error('Unexpected error in deleteBoard');
   }
-
-  const boardRef = doc(db, 'boards', boardId);
-  batch.delete(boardRef);
-  await batch.commit();
 }
 
 // 👥 Role & Membership Management

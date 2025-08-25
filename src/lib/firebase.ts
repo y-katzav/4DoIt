@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getStorage } from 'firebase/storage';
+import { getStorage, connectStorageEmulator } from 'firebase/storage';
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getAuth, connectAuthEmulator } from 'firebase/auth';
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
@@ -25,31 +25,51 @@ const auth = getAuth(firebaseApp);
 const storage = getStorage(firebaseApp);
 const functions = getFunctions(firebaseApp);
 
+// Track if emulators are already connected
+let emulatorsConnected = false;
+
 // ➜ Connect to Emulators in development (local or Codespaces)
 // ...existing code...
 
 // פונקציה לחיבור לאמולטורים (לא אוטומטית)
 export function connectToFirebaseEmulators() {
-  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-    console.log('Connecting to Firebase Emulators...');
+  const useEmulators = process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === 'true';
+  
+  if (typeof window !== 'undefined' && useEmulators && !emulatorsConnected) {
+    console.log('🔥 Connecting to Firebase Emulators...');
 
-    // --- Auth Emulator (full URL)
-    const authOrigin = window.location.hostname.endsWith('.github.dev')
-      ? `https://9100-${window.location.hostname.split('-').slice(1).join('-')}`
-      : 'http://localhost:9100';
-    connectAuthEmulator(auth, authOrigin);
+    try {
+      // In GitHub Codespaces, use localhost instead of the complex hostname
+      const isCodespaces = window.location.hostname.includes('.app.github.dev');
+      
+      // --- Auth Emulator (full URL)
+      const authOrigin = isCodespaces 
+        ? 'http://localhost:9100'
+        : 'http://127.0.0.1:9100';
+      console.log('🔐 Connecting Auth emulator at:', authOrigin);
+      connectAuthEmulator(auth, authOrigin);
 
-    // --- Firestore Emulator (host + port)
-    const fsHost = window.location.hostname.endsWith('.github.dev')
-      ? window.location.hostname
-      : 'localhost';
-    connectFirestoreEmulator(db, fsHost, 8081);
+      // --- Firestore Emulator (host + port)
+      const fsHost = isCodespaces ? 'localhost' : '127.0.0.1';
+      console.log('📄 Connecting Firestore emulator at:', `${fsHost}:8081`);
+      connectFirestoreEmulator(db, fsHost, 8081);
 
-    // --- Functions Emulator (host + port)
-    const fnHost = fsHost;
-    connectFunctionsEmulator(functions, fnHost, 5001);
+      // --- Functions Emulator (host + port)
+      console.log('⚡ Connecting Functions emulator at:', `${fsHost}:5001`);
+      connectFunctionsEmulator(functions, fsHost, 5001);
 
-    console.log('Successfully connected to Firebase Emulators.');
+      // --- Storage Emulator (host + port)
+      console.log('📁 Connecting Storage emulator at:', `${fsHost}:9199`);
+      connectStorageEmulator(storage, fsHost, 9199);
+
+      emulatorsConnected = true;
+      console.log('✅ Successfully connected to Firebase Emulators.');
+    } catch (error) {
+      console.warn('⚠️ Failed to connect to some emulators:', error);
+      emulatorsConnected = true; // Prevent retrying
+    }
+  } else if (!useEmulators) {
+    console.log('🚀 Using Firebase production services');
   }
 }
 

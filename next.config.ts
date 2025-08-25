@@ -8,6 +8,12 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  experimental: {
+    // Fix for Server Actions in development with forwarded headers
+    serverActions: {
+      allowedOrigins: ['localhost:3000', 'localhost:3001', 'scaling-carnival-jrq67rqp4vjf56j9-3000.app.github.dev', 'scaling-carnival-jrq67rqp4vjf56j9-3001.app.github.dev'],
+    },
+  },
   images: {
     remotePatterns: [
       {

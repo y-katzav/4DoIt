@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import { getAuth, onAuthStateChanged, User } from 'firebase/auth';
-import { firebaseApp } from '@/lib/firebase';
+import { firebaseApp, connectToFirebaseEmulators } from '@/lib/firebase';
 import { usePathname, useRouter } from 'next/navigation';
 
 interface AuthContextType {
@@ -20,6 +20,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const pathname = usePathname();
 
   useEffect(() => {
+    // התחבר ל-emulators בפיתוח
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔥 About to connect to Firebase Emulators...');
+      try {
+        connectToFirebaseEmulators();
+        console.log('✅ Firebase Emulators connection initiated');
+      } catch (error) {
+        console.error('❌ Failed to connect to Firebase Emulators:', error);
+      }
+    }
+    
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       console.log('🔐 Auth state changed. User:', firebaseUser);
       setUser(firebaseUser);

@@ -4,6 +4,9 @@ import { useState, useEffect, useCallback } from 'react';
 import type { Task, Category, Board, BoardMember, BoardInvitation, BoardRole } from '@/lib/types';
 import { Header } from '@/components/header';
 import { TaskList } from '@/components/task-list';
+import { TableView } from '@/components/table-view';
+import { MergedView } from '@/components/merged-view';
+import { ViewToggle, ViewMode } from '@/components/view-toggle';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/components/auth-provider';
 import { getAuth, signOut } from 'firebase/auth';
@@ -91,6 +94,7 @@ export default function Home() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [isDataLoading, setIsDataLoading] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('cards');
   const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
   const [isAddBoardOpen, setIsAddBoardOpen] = useState(false);
   const [isEditBoardOpen, setIsEditBoardOpen] = useState(false);
@@ -464,10 +468,24 @@ const handleAddBoard = async (boardData: Omit<Board, 'id' | 'createdAt' | 'owner
     if (!newTaskData.fileUrl) delete (newTaskData as any).fileUrl;
     if (!newTaskData.fileName) delete (newTaskData as any).fileName;
 
-    const docRef = await addDoc(collection(db, `boards/${activeBoard.board.id}/tasks`), newTaskData as any);
-    const newTask: Task = { ...newTaskData, id: docRef.id, dueDate: toDate(newTaskData.dueDate) } as Task;
+    try {
+      const docRef = await addDoc(collection(db, `boards/${activeBoard.board.id}/tasks`), newTaskData as any);
+      const newTask: Task = { ...newTaskData, id: docRef.id, dueDate: toDate(newTaskData.dueDate) } as Task;
 
-    setTasks((prevTasks) => [newTask, ...prevTasks]);
+      setTasks((prevTasks) => [newTask, ...prevTasks]);
+      
+      toast({
+        title: 'Task Created',
+        description: 'Your task has been created successfully.',
+      });
+    } catch (error) {
+      console.error('Error saving task to DB:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to save task. Please try again.',
+      });
+    }
   };
 
   const handleAiCreateTasks = async (aiResult: CreateTasksFromPromptOutput) => {
@@ -527,6 +545,16 @@ const handleAddBoard = async (boardData: Omit<Board, 'id' | 'createdAt' | 'owner
 
   const handleEditTask = async (updatedTask: Task) => {
     if (!user || !activeBoard) return;
+    
+    if (isReadOnly) {
+      toast({
+        title: "אין הרשאות",
+        description: "אין לך הרשאות לעריכה בלוח זה. אתה יכול רק לצפות בתוכן.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const taskRef = doc(db, `boards/${activeBoard.board.id}/tasks`, updatedTask.id);
     const { id, dueDate, ...rest } = updatedTask;
 
@@ -558,6 +586,16 @@ const handleAddBoard = async (boardData: Omit<Board, 'id' | 'createdAt' | 'owner
 
   const handleToggleComplete = async (id: string) => {
     if (!user || !activeBoard) return;
+    
+    if (isReadOnly) {
+      toast({
+        title: "אין הרשאות",
+        description: "אין לך הרשאות לעריכה בלוח זה. אתה יכול רק לצפות בתוכן.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const task = tasks.find((t) => t.id === id);
     if (!task) return;
 
@@ -569,6 +607,16 @@ const handleAddBoard = async (boardData: Omit<Board, 'id' | 'createdAt' | 'owner
 
   const handleDeleteTask = async (id: string) => {
     if (!user || !activeBoard) return;
+    
+    if (isReadOnly) {
+      toast({
+        title: "אין הרשאות",
+        description: "אין לך הרשאות לעריכה בלוח זה. אתה יכול רק לצפות בתוכן.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     await deleteDoc(doc(db, `boards/${activeBoard.board.id}/tasks`, id));
     setTasks((prevTasks) => prevTasks.filter((task) => task.id !== id));
   };
@@ -577,6 +625,16 @@ const handleAddBoard = async (boardData: Omit<Board, 'id' | 'createdAt' | 'owner
   // -------------------- Categories --------------------
   const handleEditCategory = async (categoryId: string, newName: string, newColor: string) => {
     if (!user || !activeBoard) return;
+    
+    if (isReadOnly) {
+      toast({
+        title: "אין הרשאות",
+        description: "אין לך הרשאות לעריכה בלוח זה. אתה יכול רק לצפות בתוכן.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const categoryRef = doc(db, `boards/${activeBoard.board.id}/categories`, categoryId);
     await updateDoc(categoryRef, { name: newName, color: newColor });
 
@@ -587,6 +645,16 @@ const handleAddBoard = async (boardData: Omit<Board, 'id' | 'createdAt' | 'owner
 
   const handleDeleteCategory = async (categoryToDeleteId: string) => {
     if (!user || !activeBoard) return;
+    
+    if (isReadOnly) {
+      toast({
+        title: "אין הרשאות",
+        description: "אין לך הרשאות לעריכה בלוח זה. אתה יכול רק לצפות בתוכן.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const categoryName = categories.find((c) => c.id === categoryToDeleteId)?.name ?? '';
 
     const batch = writeBatch(db);
@@ -696,18 +764,51 @@ const handleAddBoard = async (boardData: Omit<Board, 'id' | 'createdAt' | 'owner
       <>
         <h1 className="text-2xl font-bold">{activeBoard.board.name || 'ForDo'}</h1>
         {!isReadOnly && <AiTaskCreator onCreateTasks={handleAiCreateTasks} />}
-        <TaskList
-          tasks={tasks}
-          categories={categories}
-          boardMembers={boardMembers}
-          onToggleComplete={handleToggleComplete}
-          onDeleteTask={handleDeleteTask}
-          onEditTask={handleEditTask}
-          onEditCategory={handleEditCategory}
-          onDeleteCategory={handleDeleteCategory}
-          onAddTask={handleOpenAddTaskDialog}
-          isReadOnly={isReadOnly}
-        />
+        
+        <div className="mb-4">
+          <ViewToggle viewMode={viewMode} onViewModeChange={setViewMode} />
+        </div>
+
+        {viewMode === 'cards' ? (
+          <TaskList
+            tasks={tasks}
+            categories={categories}
+            boardMembers={boardMembers}
+            onToggleComplete={handleToggleComplete}
+            onDeleteTask={handleDeleteTask}
+            onEditTask={handleEditTask}
+            onEditCategory={handleEditCategory}
+            onDeleteCategory={handleDeleteCategory}
+            onAddTask={handleOpenAddTaskDialog}
+            isReadOnly={isReadOnly}
+          />
+        ) : viewMode === 'table' ? (
+          <TableView
+            tasks={tasks}
+            categories={categories}
+            boardMembers={boardMembers}
+            onToggleComplete={handleToggleComplete}
+            onDeleteTask={handleDeleteTask}
+            onEditTask={handleEditTask}
+            onEditCategory={handleEditCategory}
+            onDeleteCategory={handleDeleteCategory}
+            onAddTask={handleOpenAddTaskDialog}
+            isReadOnly={isReadOnly}
+          />
+        ) : (
+          <MergedView
+            tasks={tasks}
+            categories={categories}
+            boardMembers={boardMembers}
+            onToggleComplete={handleToggleComplete}
+            onDeleteTask={handleDeleteTask}
+            onEditTask={handleEditTask}
+            onEditCategory={handleEditCategory}
+            onDeleteCategory={handleDeleteCategory}
+            onAddTask={handleOpenAddTaskDialog}
+            isReadOnly={isReadOnly}
+          />
+        )}
       </>
     );
   };
@@ -787,8 +888,8 @@ const handleAddBoard = async (boardData: Omit<Board, 'id' | 'createdAt' | 'owner
       </SidebarInset>
       <AddTaskDialog
         isOpen={isAddTaskOpen}
-        onOpenChange={setIsAddTaskOpen}
-        onAddTask={handleAddTask}
+        onClose={() => setIsAddTaskOpen(false)}
+        onSubmit={handleAddTask}
         categories={categories}
         boardMembers={boardMembers}
         defaultCategoryId={defaultCategory}

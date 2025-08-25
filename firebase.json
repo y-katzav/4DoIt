@@ -19,6 +19,9 @@
   "firestore": {
     "rules": "firestore.rules"
   },
+  "storage": {
+    "rules": "storage.rules"
+  },
   "emulators": {
     "functions": {
       "host": "127.0.0.1",
@@ -27,6 +30,10 @@
     "firestore": {
       "host": "127.0.0.1",
       "port": 8081
+    },
+    "storage": {
+      "host": "127.0.0.1",
+      "port": 9199
     },
     "auth": {
       "host": "127.0.0.1",

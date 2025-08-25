@@ -504,3 +504,93 @@ export const getBoardMembers = onCall<{ boardId: string }>(async (request) => {
     console.log("[getBoardMembers] Total execution time:", duration, "ms");
   }
 });
+
+export const deleteBoard = onCall<{ boardId: string }>(async (request) => {
+  const startTime = Date.now();
+  console.log("[deleteBoard] ====== FUNCTION START ======");
+  console.log("[deleteBoard] Request data:", JSON.stringify(request.data));
+
+  try {
+    if (!request.auth || !request.auth.uid) {
+      console.error("[deleteBoard] Authentication failed");
+      throw new HttpsError(
+        "unauthenticated",
+        "You must be logged in to delete a board."
+      );
+    }
+    console.log("[deleteBoard] Authentication passed - uid:",
+      request.auth.uid);
+
+    const {boardId} = request.data;
+    console.log("[deleteBoard] Board ID:", boardId);
+
+    if (!boardId) {
+      console.error("[deleteBoard] Missing board ID");
+      throw new HttpsError("invalid-argument", "Missing board ID.");
+    }
+
+    // בדיקה שהלוח קיים ושהמשתמש הוא הבעלים
+    console.log("[deleteBoard] Checking board ownership");
+    const boardRef = db.collection("boards").doc(boardId);
+    const boardSnap = await boardRef.get();
+
+    if (!boardSnap.exists) {
+      console.error("[deleteBoard] Board not found:", boardId);
+      throw new HttpsError("not-found", "Board not found.");
+    }
+
+    const boardData = boardSnap.data();
+    const callingUserId = request.auth.uid;
+
+    if (boardData?.ownerId !== callingUserId) {
+      console.error("[deleteBoard] Permission denied - not owner");
+      throw new HttpsError("permission-denied",
+        "Only the board owner can delete the board.");
+    }
+
+    console.log("[deleteBoard] Permission granted - proceeding with deletion");
+
+    // מחיקת כל ה-boardMemberships של כל החברים
+    const memberRoles = boardData?.members || {};
+    const allMemberUids = Object.keys(memberRoles);
+
+    console.log("[deleteBoard] Deleting boardMemberships for",
+      allMemberUids.length, "members");
+
+    const batch = db.batch();
+
+    // מחיקת boardMemberships לכל החברים (כולל הבעלים)
+    allMemberUids.forEach((uid) => {
+      const membershipRef = db.collection("users")
+        .doc(uid).collection("boardMemberships").doc(boardId);
+      batch.delete(membershipRef);
+      console.log("[deleteBoard] Scheduled deletion of membership for:", uid);
+    });
+
+    // מחיקת הלוח עצמו
+    batch.delete(boardRef);
+    console.log("[deleteBoard] Scheduled deletion of board:", boardId);
+
+    await batch.commit();
+    console.log("[deleteBoard] All deletions committed successfully");
+
+    return {
+      success: true,
+      message: `Board "${boardData?.name || boardId}" deleted successfully.`,
+    };
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    console.error("[deleteBoard] ====== FUNCTION ERROR ======");
+    console.error("[deleteBoard] Error after", duration, "ms:", error);
+
+    if (error instanceof HttpsError) {
+      throw error;
+    } else {
+      throw new HttpsError("internal", "An unexpected error occurred");
+    }
+  } finally {
+    const duration = Date.now() - startTime;
+    console.log("[deleteBoard] ====== FUNCTION END ======");
+    console.log("[deleteBoard] Total execution time:", duration, "ms");
+  }
+});
