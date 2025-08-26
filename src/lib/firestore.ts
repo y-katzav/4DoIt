@@ -25,6 +25,32 @@ export const auth = getAuth(firebaseApp);
 export const storage = getStorage(firebaseApp);
 const functions = getFunctions(firebaseApp);
 
+/**
+ * וידוא שהמשתמש קיים בקולקציה users
+ * נוצר אוטומטית כאשר המשתמש נכנס לראשונה
+ */
+export async function ensureUserExists(user: { uid: string; email: string | null; displayName: string | null }): Promise<void> {
+  try {
+    const userDocRef = doc(db, 'users', user.uid);
+    const userDoc = await getDoc(userDocRef);
+    
+    if (!userDoc.exists()) {
+      console.log('[ensureUserExists] Creating user document for:', user.uid);
+      await setDoc(userDocRef, {
+        email: user.email,
+        displayName: user.displayName || user.email?.split('@')[0] || 'User',
+        createdAt: Timestamp.now(),
+      });
+      console.log('[ensureUserExists] User document created successfully');
+    } else {
+      console.log('[ensureUserExists] User document already exists');
+    }
+  } catch (error) {
+    console.error('[ensureUserExists] Error:', error);
+    // אל תזרוק שגיאה כי זה לא קריטי לפונקציונליות הבסיסית
+  }
+}
+
 // 📤 Callable Cloud Functions
 const shareBoardCallable = httpsCallable(functions, 'shareBoard');
 const acceptBoardInvitationCallable = httpsCallable<{ invitationId: string }, void>(functions, 'acceptBoardInvitation');
@@ -208,8 +234,17 @@ export async function getUserBoardsViaMemberships(userId: string): Promise<{ boa
   if (!userId || typeof userId !== 'string') {
     throw new Error('Invalid userId provided');
   }
-  
+
   try {
+    // קודם נבדוק אם המשתמש קיים בכלל
+    const userDocRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userDocRef);
+    
+    if (!userDoc.exists()) {
+      console.log('[getUserBoardsViaMemberships] user document does not exist, returning empty array');
+      return [];
+    }
+
     // שלב 1: שליפת תת-אוסף boardMemberships של המשתמש
     const membershipQuery = query(collection(db, 'users', userId, 'boardMemberships'));
     const membershipSnapshot = await getDocs(membershipQuery);
@@ -219,9 +254,7 @@ export async function getUserBoardsViaMemberships(userId: string): Promise<{ boa
     if (membershipSnapshot.empty) {
       console.log('[getUserBoardsViaMemberships] no board memberships found');
       return [];
-    }
-    
-    // שלב 2: איסוף board IDs ותפקידים עם בדיקות
+    }    // שלב 2: איסוף board IDs ותפקידים עם בדיקות
     const boardMemberships: { [boardId: string]: BoardRole } = {};
     membershipSnapshot.docs.forEach(doc => {
       const data = doc.data();

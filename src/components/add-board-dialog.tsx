@@ -50,7 +50,12 @@ export function AddBoardDialog({ isOpen, onOpenChange, onAddBoard, existingBoard
   const onSubmit = async (values: FormValues) => {
     try {
       const icon = boardIcons[existingBoardCount % boardIcons.length];
-      await onAddBoard({ ...values, icon });
+      await onAddBoard({ 
+        ...values, 
+        icon,
+        members: {},
+        sharedWith: {}
+      });
       onOpenChange(false);
       form.reset();
     } catch (error) {

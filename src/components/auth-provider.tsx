@@ -20,8 +20,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const pathname = usePathname();
 
   useEffect(() => {
-    // התחבר ל-emulators בפיתוח
-    if (process.env.NODE_ENV === 'development') {
+    // התחבר ל-emulators בפיתוח רק אם מוגדר במשתני סביבה
+    const useEmulators = process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === 'true';
+    
+    if (process.env.NODE_ENV === 'development' && useEmulators) {
       console.log('🔥 About to connect to Firebase Emulators...');
       try {
         connectToFirebaseEmulators();
@@ -29,7 +31,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       } catch (error) {
         console.error('❌ Failed to connect to Firebase Emulators:', error);
       }
+    } else {
+      console.log('🚀 Using Firebase production services');
     }
+
+    // נקה cache של auth במידת הצורך
+    console.log('📌 auth.currentUser:', auth.currentUser);
     
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       console.log('🔐 Auth state changed. User:', firebaseUser);

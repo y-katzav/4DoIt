@@ -61,6 +61,7 @@ import {
   declineBoardInvitation,
   getBoardMembers,
   getUserBoardsViaMemberships,
+  ensureUserExists,
 } from '@/lib/firestore';
 import { EditBoardDialog } from '@/components/edit-board-dialog';
 import { DynamicIcon } from '@/components/dynamic-icon';
@@ -115,6 +116,9 @@ export default function Home() {
     setIsLoading(true);
     try {
       console.log('Fetching data for user:', { uid: user.uid, email: user.email });
+      
+      // וידוא שהמשתמש קיים בקולקציה users
+      await ensureUserExists(user);
       
       // בדוק כל פונקציה בנפרד
       let owned = [], shared = [], pendingInvitations = [];
@@ -882,6 +886,10 @@ const handleAddBoard = async (boardData: Omit<Board, 'id' | 'createdAt' | 'owner
             isReadOnly={isReadOnly}
             invitations={invitations}
             onInvitationAction={handleInvitationAction}
+            tasks={tasks}
+            categories={categories}
+            boardMembers={boardMembers}
+            boardName={activeBoard?.board.name || 'Board'}
           />
           <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8 container mx-auto">{renderContent()}</main>
         </div>

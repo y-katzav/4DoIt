@@ -2,7 +2,7 @@
 
 import { Logo } from '@/components/logo';
 import { Button } from './ui/button';
-import { LogOut, Settings, PlusCircle, Moon, Sun, Monitor, Share2 } from 'lucide-react';
+import { LogOut, PlusCircle, Moon, Sun, Monitor, Share2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,12 +16,12 @@ import {
   DropdownMenuPortal,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import Link from 'next/link';
 import { useAuth } from './auth-provider';
 import { useTheme } from 'next-themes';
 import { SidebarTrigger } from './ui/sidebar';
 import { InvitationsPopover } from './invitations-popover';
-import type { BoardInvitation } from '@/lib/types';
+import { ExportExcel } from './export-excel';
+import type { BoardInvitation, Task, Category, BoardMember } from '@/lib/types';
 
 interface HeaderProps {
   onAddTaskClick: () => void;
@@ -31,6 +31,11 @@ interface HeaderProps {
   isReadOnly?: boolean;
   invitations: BoardInvitation[];
   onInvitationAction: (action: 'accept' | 'decline', invitation: BoardInvitation) => void;
+  // Export Excel props
+  tasks: Task[];
+  categories: Category[];
+  boardMembers: BoardMember[];
+  boardName: string;
 }
 
 export function Header({ 
@@ -40,7 +45,11 @@ export function Header({
   isBoardSelected, 
   isReadOnly = false,
   invitations,
-  onInvitationAction
+  onInvitationAction,
+  tasks,
+  categories,
+  boardMembers,
+  boardName
 }: HeaderProps) {
     const { user } = useAuth();
     const { setTheme } = useTheme();
@@ -56,6 +65,12 @@ export function Header({
           <SidebarTrigger />
         </div>
         <div className="flex flex-1 items-center justify-end space-x-2">
+            <ExportExcel 
+              tasks={tasks}
+              categories={categories}
+              boardMembers={boardMembers}
+              boardName={boardName}
+            />
             <Button onClick={onAddTaskClick} disabled={!isBoardSelected || isReadOnly}>
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Add Task
@@ -87,12 +102,6 @@ export function Header({
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link href="/profile">
-                    <Settings className="mr-2 h-4 w-4" />
-                    <span>Profile</span>
-                </Link>
-              </DropdownMenuItem>
                <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
                   <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0 mr-2" />
