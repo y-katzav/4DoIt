@@ -51,6 +51,8 @@ import { Logo } from '@/components/logo';
 import { AddBoardDialog } from '@/components/add-board-dialog';
 import { NoBoards } from '@/components/no-boards';
 import { ShareBoardDialog } from '@/components/share-board-dialog';
+import { TaskStatsDialog } from '@/components/task-stats-dialog';
+import { TaskBreakdown } from '@/components/task-breakdown';
 import {
   getOwnedBoards,
   getSharedBoards,
@@ -62,6 +64,8 @@ import {
   getBoardMembers,
   getUserBoardsViaMemberships,
   ensureUserExists,
+  cleanupUserBoardMemberships,
+  performMaintenanceCleanup,
 } from '@/lib/firestore';
 import { EditBoardDialog } from '@/components/edit-board-dialog';
 import { DynamicIcon } from '@/components/dynamic-icon';
@@ -101,6 +105,7 @@ export default function Home() {
   const [isEditBoardOpen, setIsEditBoardOpen] = useState(false);
   const [editingBoard, setEditingBoard] = useState<Board | null>(null);
   const [isShareBoardOpen, setIsShareBoardOpen] = useState(false);
+  const [isStatsDialogOpen, setIsStatsDialogOpen] = useState(false);
   const [defaultCategory, setDefaultCategory] = useState<string | undefined>(undefined);
 
   const { toast } = useToast();
@@ -119,6 +124,16 @@ export default function Home() {
       
       // וידוא שהמשתמש קיים בקולקציה users
       await ensureUserExists(user);
+      
+      // ניקוי מקיף של נתונים פגומים (רק אם צריך)
+      const maintenanceResults = await performMaintenanceCleanup(user.uid);
+      if (maintenanceResults.invalidMemberships > 0 || maintenanceResults.corruptedBoards.deletedCount > 0) {
+        console.log('Maintenance completed:', {
+          cleanedMemberships: maintenanceResults.invalidMemberships,
+          deletedCorruptedBoards: maintenanceResults.corruptedBoards.deletedCount,
+          deletedBoardIds: maintenanceResults.corruptedBoards.deletedBoards
+        });
+      }
       
       // בדוק כל פונקציה בנפרד
       let owned = [], shared = [], pendingInvitations = [];
@@ -294,6 +309,10 @@ export default function Home() {
     setIsEditBoardOpen(true);
   };
 
+  const handleOpenStatsDialog = () => {
+    setIsStatsDialogOpen(true);
+  };
+
   // -------------------- Boards --------------------
 
 const handleAddBoard = async (boardData: Omit<Board, 'id' | 'createdAt' | 'ownerId'>) => {
@@ -355,7 +374,27 @@ const handleAddBoard = async (boardData: Omit<Board, 'id' | 'createdAt' | 'owner
 
   await batch.commit();
 
-  // ...המשך הקוד...
+  // שלב 3: עדכן את הסטייט המקומי
+  const newBoard: Board = { 
+    id: newBoardRef.id, 
+    ...newBoardData 
+  };
+  
+  const newBoardWithRole = { 
+    board: newBoard, 
+    role: 'owner' as BoardRole 
+  };
+  
+  // הוסף את הלוח החדש לרשימת הלוחות בבעלות המשתמש
+  setOwnedBoards(prev => [...prev, newBoardWithRole]);
+  
+  // עבור ללוח החדש אוטומטית
+  router.replace(`${pathname}?board=${newBoardRef.id}`, { scroll: false });
+  
+  toast({
+    title: 'Board Created',
+    description: `Board "${boardData.name}" has been created successfully.`,
+  });
 };
   const handleEditBoard = async (boardId: string, newName: string, newIcon: string) => {
     if (!user) return;
@@ -799,6 +838,12 @@ const handleAddBoard = async (boardData: Omit<Board, 'id' | 'createdAt' | 'owner
             onAddTask={handleOpenAddTaskDialog}
             isReadOnly={isReadOnly}
           />
+        ) : viewMode === 'breakdown' ? (
+          <TaskBreakdown
+            tasks={tasks}
+            categories={categories}
+            title={`פירוט משימות - ${activeBoard.board.name}`}
+          />
         ) : (
           <MergedView
             tasks={tasks}
@@ -882,6 +927,7 @@ const handleAddBoard = async (boardData: Omit<Board, 'id' | 'createdAt' | 'owner
             onAddTaskClick={() => handleOpenAddTaskDialog()}
             onSignOut={handleSignOut}
             onShareClick={() => setIsShareBoardOpen(true)}
+            onStatsClick={handleOpenStatsDialog}
             isBoardSelected={!!activeBoard}
             isReadOnly={isReadOnly}
             invitations={invitations}
@@ -929,6 +975,15 @@ const handleAddBoard = async (boardData: Omit<Board, 'id' | 'createdAt' | 'owner
           members={boardMembers}
           onBoardUpdate={handleBoardUpdate}
           onMemberLeft={handleBoardLeft}
+        />
+      )}
+      {activeBoard && (
+        <TaskStatsDialog
+          isOpen={isStatsDialogOpen}
+          onOpenChange={setIsStatsDialogOpen}
+          tasks={tasks}
+          categories={categories}
+          boardName={activeBoard.board.name}
         />
       )}
     </SidebarProvider>

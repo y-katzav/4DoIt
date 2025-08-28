@@ -1,0 +1,126 @@
+{
+  "common": {
+    "loading": "Cargando...",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "create": "Crear",
+    "update": "Actualizar",
+    "close": "Cerrar",
+    "back": "Atrás",
+    "next": "Siguiente",
+    "confirm": "Confirmar",
+    "yes": "Sí",
+    "no": "No",
+    "error": "Error",
+    "success": "Éxito",
+    "warning": "Advertencia",
+    "info": "Información"
+  },
+  "header": {
+    "addTask": "Agregar Tarea",
+    "share": "Compartir",
+    "stats": "Estadísticas",
+    "signOut": "Cerrar Sesión",
+    "theme": "Tema",
+    "light": "Claro",
+    "dark": "Oscuro",
+    "system": "Sistema"
+  },
+  "navigation": {
+    "boards": "Tableros",
+    "myBoards": "Mis Tableros",
+    "sharedBoards": "Tableros Compartidos",
+    "invitations": "Invitaciones"
+  },
+  "board": {
+    "createBoard": "Crear Tablero",
+    "editBoard": "Editar Tablero",
+    "deleteBoard": "Eliminar Tablero",
+    "shareBoard": "Compartir Tablero",
+    "boardName": "Nombre del Tablero",
+    "boardIcon": "Icono del Tablero",
+    "noBoards": "No hay tableros disponibles",
+    "createFirstBoard": "Crea tu primer tablero",
+    "boardCreated": "Tablero creado exitosamente",
+    "boardUpdated": "Tablero actualizado exitosamente",
+    "boardDeleted": "Tablero eliminado exitosamente"
+  },
+  "task": {
+    "addTask": "Agregar Tarea",
+    "editTask": "Editar Tarea",
+    "deleteTask": "Eliminar Tarea",
+    "taskDescription": "Descripción de la Tarea",
+    "dueDate": "Fecha de Vencimiento",
+    "priority": "Prioridad",
+    "category": "Categoría",
+    "assignee": "Asignado",
+    "completed": "Completada",
+    "pending": "Pendiente",
+    "overdue": "Vencida",
+    "dueToday": "Vence Hoy",
+    "upcoming": "Próxima",
+    "noTasks": "No se encontraron tareas",
+    "createFirstTask": "Crea tu primera tarea"
+  },
+  "priority": {
+    "high": "Alta",
+    "medium": "Media",
+    "low": "Baja",
+    "highPriority": "Prioridad Alta",
+    "mediumPriority": "Prioridad Media",
+    "lowPriority": "Prioridad Baja"
+  },
+  "stats": {
+    "taskBreakdown": "Desglose de Tareas",
+    "taskStats": "Estadísticas de Tareas",
+    "totalTasks": "Total de Tareas",
+    "completedTasks": "Completadas",
+    "pendingTasks": "Pendientes",
+    "completionRate": "Tasa de Finalización",
+    "byPriority": "Por Prioridad",
+    "byCategory": "Por Categoría",
+    "byDueDate": "Por Fecha de Vencimiento",
+    "overallProgress": "Progreso General",
+    "mostActive": "Más Activa",
+    "remaining": "restantes",
+    "completed": "completadas",
+    "noTasksToShow": "No hay tareas para mostrar",
+    "createTasksToSeeStats": "Crea tareas para ver estadísticas"
+  },
+  "views": {
+    "cards": "Tarjetas",
+    "table": "Tabla",
+    "merged": "Fusionado",
+    "breakdown": "Desglose"
+  },
+  "invitations": {
+    "pending": "Invitaciones Pendientes",
+    "accept": "Aceptar",
+    "decline": "Rechazar",
+    "invitationSent": "Invitación enviada",
+    "invitationAccepted": "Invitación aceptada",
+    "invitationDeclined": "Invitación rechazada",
+    "inviteUser": "Invitar Usuario",
+    "email": "Correo Electrónico",
+    "role": "Rol"
+  },
+  "roles": {
+    "owner": "Propietario",
+    "editor": "Editor",
+    "viewer": "Espectador"
+  },
+  "auth": {
+    "signIn": "Iniciar Sesión",
+    "signUp": "Registrarse",
+    "signOut": "Cerrar Sesión",
+    "email": "Correo Electrónico",
+    "password": "Contraseña",
+    "confirmPassword": "Confirmar Contraseña",
+    "forgotPassword": "Olvidé mi Contraseña",
+    "createAccount": "Crear Cuenta",
+    "alreadyHaveAccount": "¿Ya tienes una cuenta?",
+    "dontHaveAccount": "¿No tienes una cuenta?"
+  }
+}

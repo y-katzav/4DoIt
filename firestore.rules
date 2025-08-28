@@ -6,29 +6,44 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // פונקציה לבדיקת גישה ללוח
+    // פונקציה לבדיקת גישה ללוח - כולל טיפול בלוחות פגומים
     function hasboardAccess(boardData) {
       return isSignedIn() && (
-        boardData.ownerId == request.auth.uid ||
-        (boardData.members is map && boardData.members[request.auth.uid] in ['viewer', 'editor', 'owner']) ||
-        (boardData.sharedWith is map && boardData.sharedWith[request.auth.uid] in ['viewer', 'editor', 'owner']) ||
+        // אם הלוח פגום (חסר ownerId), אפשר גישה למי שיש לו membership
+        (!('ownerId' in boardData) && exists(/databases/$(database)/documents/users/$(request.auth.uid)/boardMemberships/$(resource.id))) ||
+        
+        // אם יש ownerId, בדוק גישה רגילה
+        ('ownerId' in boardData && boardData.ownerId == request.auth.uid) ||
+        ('members' in boardData && boardData.members is map && boardData.members[request.auth.uid] in ['viewer', 'editor', 'owner']) ||
+        ('sharedWith' in boardData && boardData.sharedWith is map && boardData.sharedWith[request.auth.uid] in ['viewer', 'editor', 'owner']) ||
         exists(/databases/$(database)/documents/users/$(request.auth.uid)/boardMemberships/$(resource.id))
       );
     }
 
-    // פונקציה לבדיקת הרשאת עריכה ללוח
+    // פונקציה לבדיקת הרשאת עריכה ללוח - כולל טיפול בלוחות פגומים
     function canEditBoard(boardData) {
       return isSignedIn() && (
-        boardData.ownerId == request.auth.uid ||
-        (boardData.members is map && boardData.members[request.auth.uid] == 'editor') ||
-        (boardData.sharedWith is map && boardData.sharedWith[request.auth.uid] == 'editor') ||
+        // אם הלוח פגום (חסר ownerId), אפשר עריכה רק למי שיש לו membership עם תפקיד owner/editor
+        (!('ownerId' in boardData) && 
+         exists(/databases/$(database)/documents/users/$(request.auth.uid)/boardMemberships/$(resource.id)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)/boardMemberships/$(resource.id)).data.role in ['editor', 'owner']) ||
+        
+        // אם יש ownerId, בדוק הרשאות רגילות
+        ('ownerId' in boardData && boardData.ownerId == request.auth.uid) ||
+        ('members' in boardData && boardData.members is map && boardData.members[request.auth.uid] == 'editor') ||
+        ('sharedWith' in boardData && boardData.sharedWith is map && boardData.sharedWith[request.auth.uid] == 'editor') ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)/boardMemberships/$(resource.id)) && 
          get(/databases/$(database)/documents/users/$(request.auth.uid)/boardMemberships/$(resource.id)).data.role in ['editor', 'owner'])
       );
     }
 
     match /boards/{boardId} {
+      // גישה רגילה ללוח תקין
       allow get, list: if hasboardAccess(resource.data);
+
+      // גישה מיוחדת לזיהוי לוחות פגומים - אפשר קריאה אם יש membership
+      allow get: if isSignedIn() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)/boardMemberships/$(boardId));
 
       allow create: if isSignedIn()
         && request.resource.data.ownerId == request.auth.uid
@@ -37,20 +52,61 @@ service cloud.firestore {
 
       allow update, delete: if canEditBoard(resource.data);
 
+      // הרשאה מיוחדת למחיקת לוחות פגומים - רק אם יש membership עם תפקיד owner
+      allow delete: if isSignedIn() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)/boardMemberships/$(boardId)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)/boardMemberships/$(boardId)).data.role == 'owner';
+
       match /tasks/{taskId} {
-        allow read: if hasboardAccess(get(/databases/$(database)/documents/boards/$(boardId)).data);
+        // גישה רגילה למשימות בלוח תקין
+        allow read: if exists(/databases/$(database)/documents/boards/$(boardId)) &&
+          hasboardAccess(get(/databases/$(database)/documents/boards/$(boardId)).data);
         
-        allow create: if canEditBoard(get(/databases/$(database)/documents/boards/$(boardId)).data);
+        // גישה למשימות בלוח פגום - אם יש membership
+        allow read: if isSignedIn() && 
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)/boardMemberships/$(boardId));
         
-        allow update, delete: if canEditBoard(get(/databases/$(database)/documents/boards/$(boardId)).data);
+        allow create: if exists(/databases/$(database)/documents/boards/$(boardId)) &&
+          canEditBoard(get(/databases/$(database)/documents/boards/$(boardId)).data);
+        
+        // יצירת משימות בלוח פגום - אם יש membership עם הרשאת עריכה
+        allow create: if isSignedIn() && 
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)/boardMemberships/$(boardId)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)/boardMemberships/$(boardId)).data.role in ['editor', 'owner'];
+        
+        allow update, delete: if exists(/databases/$(database)/documents/boards/$(boardId)) &&
+          canEditBoard(get(/databases/$(database)/documents/boards/$(boardId)).data);
+        
+        // עדכון ומחיקת משימות בלוח פגום - אם יש membership עם הרשאת עריכה
+        allow update, delete: if isSignedIn() && 
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)/boardMemberships/$(boardId)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)/boardMemberships/$(boardId)).data.role in ['editor', 'owner'];
       }
 
       match /categories/{categoryId} {
-        allow read: if hasboardAccess(get(/databases/$(database)/documents/boards/$(boardId)).data);
+        // גישה רגילה לקטגוריות בלוח תקין
+        allow read: if exists(/databases/$(database)/documents/boards/$(boardId)) &&
+          hasboardAccess(get(/databases/$(database)/documents/boards/$(boardId)).data);
         
-        allow create: if canEditBoard(get(/databases/$(database)/documents/boards/$(boardId)).data);
+        // גישה לקטגוריות בלוח פגום - אם יש membership
+        allow read: if isSignedIn() && 
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)/boardMemberships/$(boardId));
         
-        allow update, delete: if canEditBoard(get(/databases/$(database)/documents/boards/$(boardId)).data);
+        allow create: if exists(/databases/$(database)/documents/boards/$(boardId)) &&
+          canEditBoard(get(/databases/$(database)/documents/boards/$(boardId)).data);
+        
+        // יצירת קטגוריות בלוח פגום - אם יש membership עם הרשאת עריכה
+        allow create: if isSignedIn() && 
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)/boardMemberships/$(boardId)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)/boardMemberships/$(boardId)).data.role in ['editor', 'owner'];
+        
+        allow update, delete: if exists(/databases/$(database)/documents/boards/$(boardId)) &&
+          canEditBoard(get(/databases/$(database)/documents/boards/$(boardId)).data);
+        
+        // עדכון ומחיקת קטגוריות בלוח פגום - אם יש membership עם הרשאת עריכה
+        allow update, delete: if isSignedIn() && 
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)/boardMemberships/$(boardId)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)/boardMemberships/$(boardId)).data.role in ['editor', 'owner'];
       }
     }
 
@@ -78,9 +134,28 @@ service cloud.firestore {
       allow delete: if isSignedIn() && request.auth.uid == userId;
       
       match /boardMemberships/{boardId} {
-        allow read, write: if isSignedIn() && request.auth.uid == userId;
+        // המשתמש יכול לקרוא את ה-memberships שלו
+        allow read: if isSignedIn() && request.auth.uid == userId;
+        
+        // המשתמש יכול ליצור membership חדש (רק לעצמו)
+        allow create: if isSignedIn() && request.auth.uid == userId;
+        
+        // המשתמש יכול לעדכן את ה-membership שלו
+        allow update: if isSignedIn() && request.auth.uid == userId;
+        
+        // המשתמש יכול למחוק את ה-membership שלו
+        // או בעל הלוח יכול למחוק משתמשים (רק אם הלוח קיים ותקין)
+        allow delete: if isSignedIn() && (
+          request.auth.uid == userId ||
+          (exists(/databases/$(database)/documents/boards/$(boardId)) &&
+           ('ownerId' in get(/databases/$(database)/documents/boards/$(boardId)).data) &&
+           get(/databases/$(database)/documents/boards/$(boardId)).data.ownerId == request.auth.uid)
+        );
+        
         // אפשר קריאה גם למשתמשים שהם חברים בלוח (viewer/editor)
-        allow read: if isSignedIn() && exists(/databases/$(database)/documents/boards/$(boardId)) &&
+        // כדי שיוכלו לראות רשימת חברים
+        allow read: if isSignedIn() && 
+          exists(/databases/$(database)/documents/boards/$(boardId)) &&
           hasboardAccess(get(/databases/$(database)/documents/boards/$(boardId)).data);
       }
     }

@@ -1,10 +1,12 @@
 import type {Metadata} from 'next';
 import { PT_Sans } from 'next/font/google';
 import './globals.css';
+import './rtl.css';
 import { Toaster } from "@/components/ui/toaster";
 import { cn } from '@/lib/utils';
 import { AuthProvider } from '@/components/auth-provider';
 import { ThemeProvider } from '@/components/theme-provider';
+import { I18nProvider } from '@/components/i18n-provider';
 
 const ptSans = PT_Sans({
   subsets: ['latin'],
@@ -30,9 +32,11 @@ export default function RootLayout({
           defaultTheme="system"
           enableSystem
         >
-          <AuthProvider>
-            {children}
-          </AuthProvider>
+          <I18nProvider>
+            <AuthProvider>
+              {children}
+            </AuthProvider>
+          </I18nProvider>
           <Toaster />
         </ThemeProvider>
       </body>

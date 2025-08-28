@@ -567,6 +567,33 @@ export const deleteBoard = onCall<{ boardId: string }>(async (request) => {
       console.log("[deleteBoard] Scheduled deletion of membership for:", uid);
     });
 
+    // מחיקת כל המשימות של הלוח
+    console.log("[deleteBoard] Deleting all tasks for board:", boardId);
+    const tasksSnapshot = await db.collection("boards").doc(boardId)
+      .collection("tasks").get();
+    tasksSnapshot.docs.forEach((taskDoc) => {
+      batch.delete(taskDoc.ref);
+      console.log("[deleteBoard] Scheduled deletion of task:", taskDoc.id);
+    });
+
+    // מחיקת כל הקטגוריות של הלוח
+    console.log("[deleteBoard] Deleting all categories for board:", boardId);
+    const categoriesSnapshot = await db.collection("boards").doc(boardId)
+      .collection("categories").get();
+    categoriesSnapshot.docs.forEach((categoryDoc) => {
+      batch.delete(categoryDoc.ref);
+      console.log("[deleteBoard] Scheduled category deletion:", categoryDoc.id);
+    });
+
+    // מחיקת כל הזמנות הלוח
+    console.log("[deleteBoard] Deleting all invitations for board:", boardId);
+    const invitationsSnapshot = await db.collection("boardInvitations")
+      .where("boardId", "==", boardId).get();
+    invitationsSnapshot.docs.forEach((invitationDoc) => {
+      batch.delete(invitationDoc.ref);
+      console.log("[deleteBoard] Scheduled invitation del:", invitationDoc.id);
+    });
+
     // מחיקת הלוח עצמו
     batch.delete(boardRef);
     console.log("[deleteBoard] Scheduled deletion of board:", boardId);
@@ -592,5 +619,155 @@ export const deleteBoard = onCall<{ boardId: string }>(async (request) => {
     const duration = Date.now() - startTime;
     console.log("[deleteBoard] ====== FUNCTION END ======");
     console.log("[deleteBoard] Total execution time:", duration, "ms");
+  }
+});
+
+/**
+ * 🔧 ADMIN FUNCTION: ניקוי כלל-מערכתי של לוחות פגומים
+ * פונקציה זו רצה עם הרשאות אדמין ויכולה למחוק לוחות של כל המשתמשים
+ * ⚠️ זהירות: פונקציה מנהלתית שצריך להריץ בזהירות!
+ */
+export const cleanupCorruptedBoards = onCall(async () => {
+  const startTime = Date.now();
+  console.log("[cleanupCorruptedBoards] ====== ADMIN FUNCTION START ======");
+
+  try {
+    // בדיקת הרשאות אדמין (אופציונלי - ניתן להוסיף בהמשך)
+    // if (!request.auth || !isAdmin(request.auth.uid)) {
+    //   throw new HttpsError("permission-denied", "Admin access required");
+    // }
+
+    console.log("[cleanupCorruptedBoards] Starting system-wide scan...");
+
+    // שלב 1: סריקת כל הלוחות במערכת
+    const boardsSnapshot = await db.collection("boards").get();
+    console.log(
+      "[cleanupCorruptedBoards] Scanning",
+      boardsSnapshot.size,
+      "boards"
+    );
+
+    const corruptedBoards: string[] = [];
+    const batch = db.batch();
+
+    // זיהוי לוחות פגומים
+    boardsSnapshot.docs.forEach((boardDoc) => {
+      const boardData = boardDoc.data();
+      const isCorrupted = !boardData ||
+                         !boardData.name ||
+                         !boardData.icon ||
+                         !boardData.ownerId ||
+                         typeof boardData.name !== "string" ||
+                         typeof boardData.icon !== "string" ||
+                         typeof boardData.ownerId !== "string" ||
+                         boardData.name.trim() === "" ||
+                         boardData.icon.trim() === "" ||
+                         boardData.ownerId.trim() === "";
+
+      if (isCorrupted) {
+        console.warn(
+          "[cleanupCorruptedBoards] Found corrupted board:",
+          boardDoc.id,
+          {
+            hasName: !!boardData?.name,
+            hasIcon: !!boardData?.icon,
+            hasOwner: !!boardData?.ownerId,
+            nameType: typeof boardData?.name,
+            iconType: typeof boardData?.icon,
+            ownerType: typeof boardData?.ownerId,
+            nameEmpty: boardData?.name?.trim() === "",
+            iconEmpty: boardData?.icon?.trim() === "",
+            ownerEmpty: boardData?.ownerId?.trim() === "",
+          }
+        );
+
+        corruptedBoards.push(boardDoc.id);
+        batch.delete(boardDoc.ref);
+      }
+    });
+
+    // מחיקת לוחות פגומים
+    let deletedBoardsCount = 0;
+    let cleanedMembershipsCount = 0;
+
+    if (corruptedBoards.length > 0) {
+      await batch.commit();
+      deletedBoardsCount = corruptedBoards.length;
+      console.log(
+        "[cleanupCorruptedBoards] Deleted",
+        deletedBoardsCount,
+        "corrupted boards:",
+        corruptedBoards
+      );
+
+      // שלב 2: ניקוי boardMemberships של הלוחות הפגומים
+      console.log("[cleanupCorruptedBoards] Cleaning memberships...");
+      const usersSnapshot = await db.collection("users").get();
+
+      const membershipCleanupBatch = db.batch();
+
+      for (const boardId of corruptedBoards) {
+        for (const userDoc of usersSnapshot.docs) {
+          const membershipRef = userDoc.ref
+            .collection("boardMemberships")
+            .doc(boardId);
+          membershipCleanupBatch.delete(membershipRef);
+          cleanedMembershipsCount++;
+        }
+      }
+
+      if (cleanedMembershipsCount > 0) {
+        await membershipCleanupBatch.commit();
+        console.log(
+          "[cleanupCorruptedBoards] Cleaned",
+          cleanedMembershipsCount,
+          "membership references"
+        );
+      }
+    } else {
+      console.log("[cleanupCorruptedBoards] No corrupted boards found");
+    }
+
+    const duration = Date.now() - startTime;
+    console.log(
+      "[cleanupCorruptedBoards] Cleanup completed in",
+      duration,
+      "ms"
+    );
+
+    return {
+      success: true,
+      scannedCount: boardsSnapshot.size,
+      deletedBoardsCount,
+      cleanedMembershipsCount,
+      deletedBoards: corruptedBoards,
+      duration,
+    };
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    console.error("[cleanupCorruptedBoards] ====== FUNCTION ERROR ======");
+    console.error(
+      "[cleanupCorruptedBoards] Error after",
+      duration,
+      "ms:",
+      error
+    );
+
+    if (error instanceof HttpsError) {
+      throw error;
+    } else {
+      throw new HttpsError(
+        "internal",
+        "An unexpected error occurred during cleanup"
+      );
+    }
+  } finally {
+    const duration = Date.now() - startTime;
+    console.log("[cleanupCorruptedBoards] ====== ADMIN FUNCTION END ======");
+    console.log(
+      "[cleanupCorruptedBoards] Total execution time:",
+      duration,
+      "ms"
+    );
   }
 });

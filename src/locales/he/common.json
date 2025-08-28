@@ -1,0 +1,131 @@
+{
+  "common": {
+    "loading": "טוען...",
+    "save": "שמור",
+    "cancel": "בטל",
+    "delete": "מחק",
+    "edit": "ערוך",
+    "create": "צור",
+    "update": "עדכן",
+    "close": "סגור",
+    "back": "חזור",
+    "next": "הבא",
+    "confirm": "אשר",
+    "yes": "כן",
+    "no": "לא",
+    "error": "שגיאה",
+    "success": "הצלחה",
+    "warning": "אזהרה",
+    "info": "מידע",
+    "unknown": "לא ידוע",
+    "status": "סטטוס",
+    "hasAttachment": "יש קובץ מצורף",
+    "attachmentName": "שם הקובץ המצורף",
+    "exportToExcel": "ייצא לאקסל"
+  },
+  "header": {
+    "addTask": "הוסף משימה",
+    "share": "שתף",
+    "stats": "סטטיסטיקות",
+    "signOut": "התנתק",
+    "theme": "ערכת נושא",
+    "light": "בהיר",
+    "dark": "כהה",
+    "system": "מערכת"
+  },
+  "navigation": {
+    "boards": "לוחות",
+    "myBoards": "הלוחות שלי",
+    "sharedBoards": "לוחות משותפים",
+    "invitations": "הזמנות"
+  },
+  "board": {
+    "createBoard": "צור לוח",
+    "editBoard": "ערוך לוח",
+    "deleteBoard": "מחק לוח",
+    "shareBoard": "שתף לוח",
+    "boardName": "שם הלוח",
+    "boardIcon": "סמל הלוח",
+    "noBoards": "אין לוחות זמינים",
+    "createFirstBoard": "צור את הלוח הראשון שלך",
+    "boardCreated": "הלוח נוצר בהצלחה",
+    "boardUpdated": "הלוח עודכן בהצלחה",
+    "boardDeleted": "הלוח נמחק בהצלחה"
+  },
+  "task": {
+    "addTask": "הוסף משימה",
+    "editTask": "ערוך משימה",
+    "deleteTask": "מחק משימה",
+    "taskDescription": "תיאור המשימה",
+    "dueDate": "תאריך יעד",
+    "priority": "עדיפות",
+    "category": "קטגוריה",
+    "assignee": "מוקצה",
+    "completed": "הושלם",
+    "pending": "בהמתנה",
+    "overdue": "באיחור",
+    "dueToday": "מגיע היום",
+    "upcoming": "בקרוב",
+    "noTasks": "לא נמצאו משימות",
+    "createFirstTask": "צור את המשימה הראשונה שלך"
+  },
+  "priority": {
+    "high": "גבוהה",
+    "medium": "בינונית",
+    "low": "נמוכה",
+    "highPriority": "עדיפות גבוהה",
+    "mediumPriority": "עדיפות בינונית",
+    "lowPriority": "עדיפות נמוכה"
+  },
+  "stats": {
+    "taskBreakdown": "פירוט משימות",
+    "taskStats": "סטטיסטיקות משימות",
+    "totalTasks": "סה\"כ משימות",
+    "completedTasks": "הושלמו",
+    "pendingTasks": "בהמתנה",
+    "completionRate": "אחוז השלמה",
+    "byPriority": "לפי עדיפות",
+    "byCategory": "לפי קטגוריה",
+    "byDueDate": "לפי תאריך יעד",
+    "overallProgress": "התקדמות כללית",
+    "mostActive": "הפעילה ביותר",
+    "remaining": "נותרו",
+    "completed": "הושלמו",
+    "noTasksToShow": "אין משימות להצגה",
+    "createTasksToSeeStats": "צור משימות כדי לראות סטטיסטיקות"
+  },
+  "views": {
+    "cards": "כרטיסים",
+    "table": "טבלה",
+    "merged": "מוזג",
+    "breakdown": "פירוט"
+  },
+  "invitations": {
+    "pending": "הזמנות ממתינות",
+    "accept": "קבל",
+    "decline": "דחה",
+    "invitationSent": "הזמנה נשלחה",
+    "invitationAccepted": "הזמנה התקבלה",
+    "invitationDeclined": "הזמנה נדחתה",
+    "inviteUser": "הזמן משתמש",
+    "email": "דוא\"ל",
+    "role": "תפקיד"
+  },
+  "roles": {
+    "owner": "בעלים",
+    "editor": "עורך",
+    "viewer": "צופה"
+  },
+  "auth": {
+    "signIn": "התחבר",
+    "signUp": "הירשם",
+    "signOut": "התנתק",
+    "email": "דוא\"ל",
+    "password": "סיסמה",
+    "confirmPassword": "אישור סיסמה",
+    "forgotPassword": "שכחת סיסמה",
+    "createAccount": "צור חשבון",
+    "alreadyHaveAccount": "יש לך כבר חשבון?",
+    "dontHaveAccount": "אין לך חשבון?"
+  }
+}

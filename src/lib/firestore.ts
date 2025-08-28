@@ -57,6 +57,14 @@ const acceptBoardInvitationCallable = httpsCallable<{ invitationId: string }, vo
 const declineBoardInvitationCallable = httpsCallable<{ invitationId: string }, void>(functions, 'declineBoardInvitation');
 const getBoardMembersCallable = httpsCallable<{ boardId: string }, { members: BoardMember[] }>(functions, 'getBoardMembers');
 const deleteBoardCallable = httpsCallable<{ boardId: string }, { success: boolean; message: string }>(functions, 'deleteBoard');
+const cleanupCorruptedBoardsCallable = httpsCallable<{}, { 
+  success: boolean; 
+  scannedCount: number; 
+  deletedBoardsCount: number; 
+  cleanedMembershipsCount: number; 
+  deletedBoards: string[]; 
+  duration: number;
+}>(functions, 'cleanupCorruptedBoards');
 
 export async function shareBoardViaFunction(boardId: string, recipientEmail: string, role: BoardRole): Promise<void> {
   console.log('[shareBoardViaFunction] called with:', { boardId, recipientEmail, role });
@@ -281,6 +289,9 @@ export async function getUserBoardsViaMemberships(userId: string): Promise<{ boa
       chunks.push(boardIds.slice(i, i + 10));
     }
     
+    const foundBoardIds = new Set<string>();
+    const orphanedMemberships: string[] = [];
+    
     for (const chunk of chunks) {
       if (chunk.length === 0) continue; // דילוג על חלקים ריקים
       
@@ -289,21 +300,91 @@ export async function getUserBoardsViaMemberships(userId: string): Promise<{ boa
         where(documentId(), 'in', chunk)
       );
       
-      const boardsSnapshot = await getDocs(boardsQuery);
-      console.log('[getUserBoardsViaMemberships] fetched', boardsSnapshot.size, 'boards for chunk');
-      
-      boardsSnapshot.docs.forEach(boardDoc => {
-        const boardData = boardDoc.data();
-        // בדיקה שנתוני הלוח תקינים
-        if (boardData && boardData.name && boardData.icon) {
-          const board = { id: boardDoc.id, ...boardData } as Board;
-          const role = boardMemberships[boardDoc.id];
+      try {
+        const boardsSnapshot = await getDocs(boardsQuery);
+        console.log('[getUserBoardsViaMemberships] fetched', boardsSnapshot.size, 'boards for chunk of', chunk.length);
+        
+        // סימון לוחות שנמצאו
+        boardsSnapshot.docs.forEach(boardDoc => {
+          foundBoardIds.add(boardDoc.id);
           
-          console.log('[getUserBoardsViaMemberships] board:', board.name, 'role:', role);
-          results.push({ board, role });
-        } else {
-          console.warn('[getUserBoardsViaMemberships] invalid board data for:', boardDoc.id);
+          const boardData = boardDoc.data();
+          // בדיקה מקיפה יותר שנתוני הלוח תקינים
+          if (boardData && 
+              boardData.name && 
+              boardData.icon && 
+              boardData.ownerId &&
+              typeof boardData.name === 'string' &&
+              typeof boardData.icon === 'string' &&
+              typeof boardData.ownerId === 'string') {
+            
+            const board = { id: boardDoc.id, ...boardData } as Board;
+            const role = boardMemberships[boardDoc.id];
+            
+            console.log('[getUserBoardsViaMemberships] valid board:', board.name, 'role:', role);
+            results.push({ board, role });
+          } else {
+            // לוח קיים אבל חסרים לו שדות חיוניים - זה לוח פגום
+            console.warn('[getUserBoardsViaMemberships] corrupted board found:', boardDoc.id, {
+              hasName: !!boardData?.name,
+              hasIcon: !!boardData?.icon, 
+              hasOwner: !!boardData?.ownerId,
+              nameType: typeof boardData?.name,
+              iconType: typeof boardData?.icon,
+              ownerType: typeof boardData?.ownerId,
+              isOwner: boardData?.ownerId === userId
+            });
+            
+            // אם המשתמש הוא הבעלים של הלוח הפגום - הוא יצטרך לתקן אותו בעצמו
+            // אם הוא לא הבעלים - נמחק את ה-membership שלו מהלוח הפגום
+            // אבל רק אם יש ownerId בכלל - אחרת לא נוכל לדעת מי הבעלים
+            if (boardData?.ownerId && boardData.ownerId !== userId) {
+              console.log('[getUserBoardsViaMemberships] user is not owner of corrupted board, will cleanup membership:', boardDoc.id);
+              orphanedMemberships.push(boardDoc.id);
+            } else if (boardData?.ownerId === userId) {
+              console.log('[getUserBoardsViaMemberships] user owns corrupted board, keeping membership for manual cleanup:', boardDoc.id);
+              // אפשר להוסיף התראה למשתמש כאן בעתיד
+            } else {
+              // אין ownerId בכלל - לא נוכל לדעת מי הבעלים, לא נמחק membership
+              console.warn('[getUserBoardsViaMemberships] corrupted board with no ownerId - cannot determine ownership, keeping membership:', boardDoc.id);
+            }
+          }
+        });
+        
+      } catch (error) {
+        console.error('[getUserBoardsViaMemberships] error fetching boards chunk:', chunk, error);
+        // אם יש שגיאה בשליפת חלק מהלוחות, נמשיך עם השאר
+        // אבל נסמן את כל הלוחות בחלק הזה כיתומים
+        chunk.forEach(boardId => {
+          console.warn('[getUserBoardsViaMemberships] failed to fetch board, marking as orphaned:', boardId);
+          orphanedMemberships.push(boardId);
+        });
+      }
+      
+      // זיהוי לוחות שלא נמצאו בכלל (נמחקו)
+      chunk.forEach(boardId => {
+        if (!foundBoardIds.has(boardId)) {
+          console.warn('[getUserBoardsViaMemberships] board not found (deleted?):', boardId);
+          orphanedMemberships.push(boardId);
         }
+      });
+    }
+    
+    // ניקוי memberships יתומים ברקע (לא חוסם את הפונקציה)
+    if (orphanedMemberships.length > 0) {
+      console.log('[getUserBoardsViaMemberships] found', orphanedMemberships.length, 'orphaned memberships, cleaning up...');
+      
+      // ניקוי ברקע - לא נחכה לסיום כדי לא לעכב את הפונקציה
+      const cleanupBatch = writeBatch(db);
+      orphanedMemberships.forEach(boardId => {
+        const membershipRef = doc(db, 'users', userId, 'boardMemberships', boardId);
+        cleanupBatch.delete(membershipRef);
+      });
+      
+      cleanupBatch.commit().then(() => {
+        console.log('[getUserBoardsViaMemberships] cleaned up', orphanedMemberships.length, 'orphaned memberships');
+      }).catch(error => {
+        console.warn('[getUserBoardsViaMemberships] failed to cleanup orphaned memberships:', error);
       });
     }
     
@@ -317,6 +398,67 @@ export async function getUserBoardsViaMemberships(userId: string): Promise<{ boa
       throw new Error(`Failed to get user boards: ${error.message}`);
     }
     throw new Error('Unexpected error getting user boards');
+  }
+}
+
+/**
+ * זיהוי לוחות פגומים שהמשתמש בעלים שלהם
+ * מחזיר רשימה של לוחות שיש להם ID אבל חסרים שדות חיוניים
+ */
+export async function getUserCorruptedBoards(userId: string): Promise<{
+  boardId: string;
+  issues: string[];
+}[]> {
+  console.log('[getUserCorruptedBoards] called with userId:', userId);
+  
+  if (!userId || typeof userId !== 'string') {
+    throw new Error('Invalid userId provided');
+  }
+
+  try {
+    // שליפת כל הלוחות של המשתמש (שהוא בעלים שלהם)
+    const boardsQuery = query(collection(db, 'boards'), where('ownerId', '==', userId));
+    const boardsSnapshot = await getDocs(boardsQuery);
+    
+    const corruptedBoards: { boardId: string; issues: string[] }[] = [];
+    
+    boardsSnapshot.docs.forEach(boardDoc => {
+      const boardData = boardDoc.data();
+      const issues: string[] = [];
+      
+      // בדיקת שדות חיוניים
+      if (!boardData) {
+        issues.push('Board data is null/undefined');
+      } else {
+        if (!boardData.name || typeof boardData.name !== 'string' || boardData.name.trim() === '') {
+          issues.push('Missing or invalid name field');
+        }
+        if (!boardData.icon || typeof boardData.icon !== 'string' || boardData.icon.trim() === '') {
+          issues.push('Missing or invalid icon field');
+        }
+        if (!boardData.ownerId || typeof boardData.ownerId !== 'string' || boardData.ownerId.trim() === '') {
+          issues.push('Missing or invalid ownerId field');
+        }
+        if (!boardData.createdAt) {
+          issues.push('Missing createdAt field');
+        }
+      }
+      
+      if (issues.length > 0) {
+        console.warn('[getUserCorruptedBoards] found corrupted board:', boardDoc.id, 'issues:', issues);
+        corruptedBoards.push({
+          boardId: boardDoc.id,
+          issues
+        });
+      }
+    });
+    
+    console.log('[getUserCorruptedBoards] found', corruptedBoards.length, 'corrupted boards');
+    return corruptedBoards;
+    
+  } catch (error) {
+    console.error('[getUserCorruptedBoards] error:', error);
+    return [];
   }
 }
 
@@ -366,4 +508,248 @@ export async function removeUserBoardMembership(userId: string, boardId: string)
   const membershipDocRef = doc(db, 'users', userId, 'boardMemberships', boardId);
   await deleteDoc(membershipDocRef);
   console.log('[removeUserBoardMembership] removed membership');
+}
+
+/**
+ * ניקוי boardMemberships של המשתמש - מסיר הפניות ללוחות שלא קיימים יותר
+ */
+export async function cleanupUserBoardMemberships(userId: string): Promise<number> {
+  console.log('[cleanupUserBoardMemberships] called with userId:', userId);
+  
+  try {
+    // שלב 1: שליפת כל ה-boardMemberships
+    const membershipQuery = query(collection(db, 'users', userId, 'boardMemberships'));
+    const membershipSnapshot = await getDocs(membershipQuery);
+    
+    if (membershipSnapshot.empty) {
+      console.log('[cleanupUserBoardMemberships] no memberships to clean');
+      return 0;
+    }
+
+    const boardIds = membershipSnapshot.docs.map(doc => doc.id);
+    console.log('[cleanupUserBoardMemberships] checking', boardIds.length, 'board memberships');
+
+    // שלב 2: בדיקה אילו לוחות קיימים בפועל
+    const existingBoardIds = new Set<string>();
+    
+    // חלוקה לחלקים של 10 (הגבלת Firestore)
+    const chunks: string[][] = [];
+    for (let i = 0; i < boardIds.length; i += 10) {
+      chunks.push(boardIds.slice(i, i + 10));
+    }
+    
+    for (const chunk of chunks) {
+      const boardsQuery = query(
+        collection(db, 'boards'),
+        where(documentId(), 'in', chunk)
+      );
+      
+      const boardsSnapshot = await getDocs(boardsQuery);
+      boardsSnapshot.docs.forEach(boardDoc => {
+        existingBoardIds.add(boardDoc.id);
+      });
+    }
+
+    // שלב 3: מחיקת memberships ללוחות שלא קיימים
+    const batch = writeBatch(db);
+    let cleanedCount = 0;
+
+    boardIds.forEach(boardId => {
+      if (!existingBoardIds.has(boardId)) {
+        const membershipDocRef = doc(db, 'users', userId, 'boardMemberships', boardId);
+        batch.delete(membershipDocRef);
+        cleanedCount++;
+        console.log('[cleanupUserBoardMemberships] scheduled deletion of membership for non-existent board:', boardId);
+      }
+    });
+
+    if (cleanedCount > 0) {
+      await batch.commit();
+      console.log('[cleanupUserBoardMemberships] cleaned', cleanedCount, 'invalid memberships');
+    } else {
+      console.log('[cleanupUserBoardMemberships] no cleanup needed');
+    }
+
+    return cleanedCount;
+    
+  } catch (error) {
+    console.error('[cleanupUserBoardMemberships] error:', error);
+    return 0; // אל תזרוק שגיאה, פשוט החזר 0
+  }
+}
+
+/**
+ * ניקוי לוחות פגומים - מוחק לוחות שחסרים להם שדות חיוניים
+ * 🔒 SECURITY: פונקציה זו יכולה למחוק רק לוחות של המשתמש הנוכחי
+ * עבור ניקוי כלל-מערכתי, צריך Cloud Function עם הרשאות אדמין
+ */
+export async function cleanupCorruptedBoards(userId: string): Promise<{
+  scannedCount: number;
+  deletedCount: number;
+  deletedBoards: string[];
+}> {
+  console.log('[cleanupCorruptedBoards] called with userId:', userId);
+  
+  // 🔒 בדיקת אבטחה: חובה לספק userId
+  if (!userId || typeof userId !== 'string') {
+    throw new Error('userId is required for security reasons - can only cleanup own boards');
+  }
+  
+  try {
+    // 🔒 סרוק רק לוחות של המשתמש הנוכחי
+    const boardsQuery = query(collection(db, 'boards'), where('ownerId', '==', userId));
+    
+    const boardsSnapshot = await getDocs(boardsQuery);
+    console.log('[cleanupCorruptedBoards] scanning', boardsSnapshot.size, 'boards');
+    
+    const corruptedBoards: string[] = [];
+    const batch = writeBatch(db);
+    
+    // זיהוי לוחות פגומים
+    boardsSnapshot.docs.forEach(boardDoc => {
+      const boardData = boardDoc.data();
+      const isCorrupted = !boardData ||
+                         !boardData.name ||
+                         !boardData.icon ||
+                         !boardData.ownerId ||
+                         typeof boardData.name !== 'string' ||
+                         typeof boardData.icon !== 'string' ||
+                         typeof boardData.ownerId !== 'string' ||
+                         boardData.name.trim() === '' ||
+                         boardData.icon.trim() === '' ||
+                         boardData.ownerId.trim() === '';
+      
+      if (isCorrupted) {
+        console.warn('[cleanupCorruptedBoards] found corrupted board:', boardDoc.id, {
+          hasName: !!boardData?.name,
+          hasIcon: !!boardData?.icon,
+          hasOwner: !!boardData?.ownerId,
+          nameType: typeof boardData?.name,
+          iconType: typeof boardData?.icon,
+          ownerType: typeof boardData?.ownerId,
+          nameEmpty: boardData?.name?.trim() === '',
+          iconEmpty: boardData?.icon?.trim() === '',
+          ownerEmpty: boardData?.ownerId?.trim() === ''
+        });
+        
+        corruptedBoards.push(boardDoc.id);
+        batch.delete(boardDoc.ref);
+      }
+    });
+    
+    // מחיקת לוחות פגומים
+    if (corruptedBoards.length > 0) {
+      await batch.commit();
+      console.log('[cleanupCorruptedBoards] deleted', corruptedBoards.length, 'corrupted boards:', corruptedBoards);
+      
+      // ניקוי boardMemberships של הלוחות הפגומים - רק של המשתמש הנוכחי
+      if (corruptedBoards.length > 0) {
+        console.log('[cleanupCorruptedBoards] cleaning memberships for deleted boards...');
+        const cleanupBatch = writeBatch(db);
+        
+        // מחיקת ה-membership של המשתמש הנוכחי מהלוחות הפגומים שנמחקו
+        for (const boardId of corruptedBoards) {
+          try {
+            const membershipRef = doc(db, 'users', userId, 'boardMemberships', boardId);
+            cleanupBatch.delete(membershipRef);
+            console.log('[cleanupCorruptedBoards] scheduled cleanup of membership for board:', boardId);
+          } catch (error) {
+            console.warn('[cleanupCorruptedBoards] failed to clean membership for board:', boardId, error);
+          }
+        }
+        
+        try {
+          await cleanupBatch.commit();
+          console.log('[cleanupCorruptedBoards] cleaned memberships for corrupted boards');
+        } catch (error) {
+          console.warn('[cleanupCorruptedBoards] failed to clean some memberships:', error);
+        }
+      }
+    } else {
+      console.log('[cleanupCorruptedBoards] no corrupted boards found');
+    }
+    
+    return {
+      scannedCount: boardsSnapshot.size,
+      deletedCount: corruptedBoards.length,
+      deletedBoards: corruptedBoards
+    };
+    
+  } catch (error) {
+    console.error('[cleanupCorruptedBoards] error:', error);
+    return {
+      scannedCount: 0,
+      deletedCount: 0,
+      deletedBoards: []
+    };
+  }
+}
+
+/**
+ * פונקצית ניקוי כללית - מריצה את כל פונקציות הניקוי
+ */
+export async function performMaintenanceCleanup(userId: string): Promise<{
+  invalidMemberships: number;
+  corruptedBoards: {
+    scannedCount: number;
+    deletedCount: number;
+    deletedBoards: string[];
+  };
+}> {
+  console.log('[performMaintenanceCleanup] starting maintenance for user:', userId);
+  
+  try {
+    // שלב 1: ניקוי boardMemberships מיותרים
+    const invalidMemberships = await cleanupUserBoardMemberships(userId);
+    
+    // שלב 2: ניקוי לוחות פגומים של המשתמש
+    const corruptedBoards = await cleanupCorruptedBoards(userId);
+    
+    console.log('[performMaintenanceCleanup] maintenance completed:', {
+      invalidMemberships,
+      corruptedBoards
+    });
+    
+    return {
+      invalidMemberships,
+      corruptedBoards
+    };
+    
+  } catch (error) {
+    console.error('[performMaintenanceCleanup] error during maintenance:', error);
+    return {
+      invalidMemberships: 0,
+      corruptedBoards: {
+        scannedCount: 0,
+        deletedCount: 0,
+        deletedBoards: []
+      }
+    };
+  }
+}
+
+/**
+ * 🔧 ADMIN FUNCTION: ניקוי כלל-מערכתי של לוחות פגומים
+ * פונקציה זו קוראת ל-Cloud Function שרץ עם הרשאות אדמין
+ * ⚠️ זהירות: פונקציה מנהלתית שצריך להריץ בזהירות!
+ */
+export async function performSystemWideCleanup(): Promise<{
+  success: boolean;
+  scannedCount: number;
+  deletedBoardsCount: number;
+  cleanedMembershipsCount: number;
+  deletedBoards: string[];
+  duration: number;
+}> {
+  console.log('[performSystemWideCleanup] calling admin Cloud Function...');
+  
+  try {
+    const result = await cleanupCorruptedBoardsCallable({});
+    console.log('[performSystemWideCleanup] Cloud Function completed:', result.data);
+    return result.data;
+  } catch (error: unknown) {
+    console.error('[performSystemWideCleanup] Cloud Function error:', error);
+    if (error instanceof Error) throw error;
+    throw new Error('Unexpected error in system-wide cleanup');
+  }
 }

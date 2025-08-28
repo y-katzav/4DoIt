@@ -2,7 +2,7 @@
 
 import { Logo } from '@/components/logo';
 import { Button } from './ui/button';
-import { LogOut, PlusCircle, Moon, Sun, Monitor, Share2 } from 'lucide-react';
+import { LogOut, PlusCircle, Moon, Sun, Monitor, Share2, BarChart3 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,12 +21,15 @@ import { useTheme } from 'next-themes';
 import { SidebarTrigger } from './ui/sidebar';
 import { InvitationsPopover } from './invitations-popover';
 import { ExportExcel } from './export-excel';
+import { LanguageSelector } from './language-selector';
+import { useI18n } from '@/hooks/use-i18n';
 import type { BoardInvitation, Task, Category, BoardMember } from '@/lib/types';
 
 interface HeaderProps {
   onAddTaskClick: () => void;
   onSignOut: () => void;
   onShareClick: () => void;
+  onStatsClick: () => void;
   isBoardSelected: boolean;
   isReadOnly?: boolean;
   invitations: BoardInvitation[];
@@ -42,6 +45,7 @@ export function Header({
   onAddTaskClick, 
   onSignOut, 
   onShareClick, 
+  onStatsClick,
   isBoardSelected, 
   isReadOnly = false,
   invitations,
@@ -53,6 +57,7 @@ export function Header({
 }: HeaderProps) {
     const { user } = useAuth();
     const { setTheme } = useTheme();
+    const { t } = useI18n();
     const userInitials = user?.email?.charAt(0).toUpperCase() ?? '?';
 
   return (
@@ -71,13 +76,22 @@ export function Header({
               boardMembers={boardMembers}
               boardName={boardName}
             />
+            <Button 
+              variant="outline" 
+              onClick={onStatsClick} 
+              disabled={!isBoardSelected}
+              size="sm"
+            >
+              <BarChart3 className="mr-2 h-4 w-4" />
+              {t('header.stats')}
+            </Button>
             <Button onClick={onAddTaskClick} disabled={!isBoardSelected || isReadOnly}>
                 <PlusCircle className="mr-2 h-4 w-4" />
-                Add Task
+                {t('header.addTask')}
             </Button>
             <Button variant="outline" onClick={onShareClick} disabled={!isBoardSelected}>
                 <Share2 className="mr-2 h-4 w-4" />
-                Share
+                {t('header.share')}
             </Button>
              <InvitationsPopover 
                 invitations={invitations} 
@@ -106,21 +120,21 @@ export function Header({
                 <DropdownMenuSubTrigger>
                   <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0 mr-2" />
                   <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100 mr-2" />
-                  <span>Theme</span>
+                  <span>{t('header.theme')}</span>
                 </DropdownMenuSubTrigger>
                 <DropdownMenuPortal>
                   <DropdownMenuSubContent>
                     <DropdownMenuItem onClick={() => setTheme("light")}>
                       <Sun className="mr-2 h-4 w-4" />
-                      <span>Light</span>
+                      <span>{t('header.light')}</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => setTheme("dark")}>
                       <Moon className="mr-2 h-4 w-4" />
-                      <span>Dark</span>
+                      <span>{t('header.dark')}</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => setTheme("system")}>
                       <Monitor className="mr-2 h-4 w-4" />
-                      <span>System</span>
+                      <span>{t('header.system')}</span>
                     </DropdownMenuItem>
                   </DropdownMenuSubContent>
                 </DropdownMenuPortal>
@@ -128,7 +142,7 @@ export function Header({
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={onSignOut}>
                 <LogOut className="mr-2 h-4 w-4" />
-                <span>Sign out</span>
+                <span>{t('header.signOut')}</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

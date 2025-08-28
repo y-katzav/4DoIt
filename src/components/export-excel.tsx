@@ -5,6 +5,7 @@ import { Download, FileSpreadsheet } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import type { Task, Category, BoardMember } from '@/lib/types';
 import { format } from 'date-fns';
+import { useI18n } from '@/hooks/use-i18n';
 
 interface ExportExcelProps {
   tasks: Task[];
@@ -14,21 +15,23 @@ interface ExportExcelProps {
 }
 
 export function ExportExcel({ tasks, categories, boardMembers, boardName }: ExportExcelProps) {
+  const { t } = useI18n();
+  
   const exportToExcel = async () => {
     // Create a new workbook and worksheet
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Tasks');
+    const worksheet = workbook.addWorksheet(t('stats.taskStats'));
 
     // Define columns with headers
     worksheet.columns = [
-      { header: 'Task Description', key: 'description', width: 40 },
-      { header: 'Category', key: 'category', width: 15 },
-      { header: 'Priority', key: 'priority', width: 10 },
-      { header: 'Status', key: 'status', width: 10 },
-      { header: 'Due Date', key: 'dueDate', width: 12 },
-      { header: 'Assigned To', key: 'assignee', width: 25 },
-      { header: 'Has Attachment', key: 'hasAttachment', width: 15 },
-      { header: 'Attachment Name', key: 'attachmentName', width: 30 }
+      { header: t('task.taskDescription'), key: 'description', width: 40 },
+      { header: t('task.category'), key: 'category', width: 15 },
+      { header: t('task.priority'), key: 'priority', width: 10 },
+      { header: t('common.status'), key: 'status', width: 10 },
+      { header: t('task.dueDate'), key: 'dueDate', width: 12 },
+      { header: t('task.assignee'), key: 'assignee', width: 25 },
+      { header: t('common.hasAttachment'), key: 'hasAttachment', width: 15 },
+      { header: t('common.attachmentName'), key: 'attachmentName', width: 30 }
     ];
 
     // Style the header row
@@ -48,12 +51,12 @@ export function ExportExcel({ tasks, categories, boardMembers, boardName }: Expo
       
       const row = worksheet.addRow({
         description: task.description,
-        category: category?.name || 'Unknown',
-        priority: task.priority,
-        status: task.completed ? 'Completed' : 'Pending',
+        category: category?.name || t('common.unknown'),
+        priority: t(`priority.${task.priority}`),
+        status: task.completed ? t('task.completed') : t('task.pending'),
         dueDate: task.dueDate ? format(task.dueDate, 'dd/MM/yyyy') : '',
         assignee: assignee?.email || '',
-        hasAttachment: task.fileUrl ? 'Yes' : 'No',
+        hasAttachment: task.fileUrl ? t('common.yes') : t('common.no'),
         attachmentName: task.fileName || ''
       });
 
@@ -133,7 +136,7 @@ export function ExportExcel({ tasks, categories, boardMembers, boardName }: Expo
       disabled={tasks.length === 0}
     >
       <FileSpreadsheet className="h-4 w-4" />
-      Export to Excel
+      {t('common.exportToExcel')}
     </Button>
   );
 }

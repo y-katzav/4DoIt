@@ -1,0 +1,126 @@
+{
+  "common": {
+    "loading": "جاري التحميل...",
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "delete": "حذف",
+    "edit": "تحرير",
+    "create": "إنشاء",
+    "update": "تحديث",
+    "close": "إغلاق",
+    "back": "رجوع",
+    "next": "التالي",
+    "confirm": "تأكيد",
+    "yes": "نعم",
+    "no": "لا",
+    "error": "خطأ",
+    "success": "نجح",
+    "warning": "تحذير",
+    "info": "معلومات"
+  },
+  "header": {
+    "addTask": "إضافة مهمة",
+    "share": "مشاركة",
+    "stats": "إحصائيات",
+    "signOut": "تسجيل الخروج",
+    "theme": "المظهر",
+    "light": "فاتح",
+    "dark": "داكن",
+    "system": "النظام"
+  },
+  "navigation": {
+    "boards": "اللوحات",
+    "myBoards": "لوحاتي",
+    "sharedBoards": "اللوحات المشتركة",
+    "invitations": "الدعوات"
+  },
+  "board": {
+    "createBoard": "إنشاء لوحة",
+    "editBoard": "تحرير اللوحة",
+    "deleteBoard": "حذف اللوحة",
+    "shareBoard": "مشاركة اللوحة",
+    "boardName": "اسم اللوحة",
+    "boardIcon": "رمز اللوحة",
+    "noBoards": "لا توجد لوحات متاحة",
+    "createFirstBoard": "أنشئ لوحتك الأولى",
+    "boardCreated": "تم إنشاء اللوحة بنجاح",
+    "boardUpdated": "تم تحديث اللوحة بنجاح",
+    "boardDeleted": "تم حذف اللوحة بنجاح"
+  },
+  "task": {
+    "addTask": "إضافة مهمة",
+    "editTask": "تحرير المهمة",
+    "deleteTask": "حذف المهمة",
+    "taskDescription": "وصف المهمة",
+    "dueDate": "تاريخ الاستحقاق",
+    "priority": "الأولوية",
+    "category": "الفئة",
+    "assignee": "المكلف",
+    "completed": "مكتملة",
+    "pending": "قيد الانتظار",
+    "overdue": "متأخرة",
+    "dueToday": "مستحقة اليوم",
+    "upcoming": "قادمة",
+    "noTasks": "لم يتم العثور على مهام",
+    "createFirstTask": "أنشئ مهمتك الأولى"
+  },
+  "priority": {
+    "high": "عالية",
+    "medium": "متوسطة",
+    "low": "منخفضة",
+    "highPriority": "أولوية عالية",
+    "mediumPriority": "أولوية متوسطة",
+    "lowPriority": "أولوية منخفضة"
+  },
+  "stats": {
+    "taskBreakdown": "تفصيل المهام",
+    "taskStats": "إحصائيات المهام",
+    "totalTasks": "إجمالي المهام",
+    "completedTasks": "مكتملة",
+    "pendingTasks": "قيد الانتظار",
+    "completionRate": "معدل الإنجاز",
+    "byPriority": "حسب الأولوية",
+    "byCategory": "حسب الفئة",
+    "byDueDate": "حسب تاريخ الاستحقاق",
+    "overallProgress": "التقدم العام",
+    "mostActive": "الأكثر نشاطاً",
+    "remaining": "متبقية",
+    "completed": "مكتملة",
+    "noTasksToShow": "لا توجد مهام للعرض",
+    "createTasksToSeeStats": "أنشئ مهام لرؤية الإحصائيات"
+  },
+  "views": {
+    "cards": "بطاقات",
+    "table": "جدول",
+    "merged": "مدمج",
+    "breakdown": "تفصيل"
+  },
+  "invitations": {
+    "pending": "دعوات معلقة",
+    "accept": "قبول",
+    "decline": "رفض",
+    "invitationSent": "تم إرسال الدعوة",
+    "invitationAccepted": "تم قبول الدعوة",
+    "invitationDeclined": "تم رفض الدعوة",
+    "inviteUser": "دعوة مستخدم",
+    "email": "البريد الإلكتروني",
+    "role": "الدور"
+  },
+  "roles": {
+    "owner": "مالك",
+    "editor": "محرر",
+    "viewer": "مشاهد"
+  },
+  "auth": {
+    "signIn": "تسجيل الدخول",
+    "signUp": "التسجيل",
+    "signOut": "تسجيل الخروج",
+    "email": "البريد الإلكتروني",
+    "password": "كلمة المرور",
+    "confirmPassword": "تأكيد كلمة المرور",
+    "forgotPassword": "نسيت كلمة المرور",
+    "createAccount": "إنشاء حساب",
+    "alreadyHaveAccount": "لديك حساب بالفعل؟",
+    "dontHaveAccount": "ليس لديك حساب؟"
+  }
+}
