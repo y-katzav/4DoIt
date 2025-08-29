@@ -9,6 +9,7 @@ import { MergedView } from '@/components/merged-view';
 import { ViewToggle, ViewMode } from '@/components/view-toggle';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/components/auth-provider';
+import { useSubscription } from '@/hooks/use-subscription';
 import { getAuth, signOut } from 'firebase/auth';
 import { firebaseApp, db } from '@/lib/firebase';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
@@ -69,6 +70,7 @@ import {
 } from '@/lib/firestore';
 import { EditBoardDialog } from '@/components/edit-board-dialog';
 import { DynamicIcon } from '@/components/dynamic-icon';
+import { SubscriptionStatus } from '@/components/subscription-status';
 import { boardIcons } from '@/lib/constants';
 
 // ---------- Small date helpers (UI uses Date|null; Firestore uses Timestamp|null)
@@ -110,6 +112,7 @@ export default function Home() {
 
   const { toast } = useToast();
   const { user } = useAuth();
+  const { getLimits } = useSubscription();
   const auth = getAuth(firebaseApp);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -300,8 +303,37 @@ export default function Home() {
   }, [activeBoard, fetchDataForBoard]);
 
   const handleOpenAddTaskDialog = (categoryId?: string) => {
+    const limits = getLimits();
+    
+    // Check task limit (only for free users)
+    if (limits.tasks !== -1 && tasks.length >= limits.tasks) {
+      toast({
+        variant: 'destructive',
+        title: 'Task Limit Reached',
+        description: `Free plan is limited to ${limits.tasks} tasks. Upgrade to Pro for unlimited tasks.`,
+      });
+      return;
+    }
+    
     setDefaultCategory(categoryId);
     setIsAddTaskOpen(true);
+  };
+
+  const handleOpenAddBoardDialog = () => {
+    const limits = getLimits();
+    const totalBoards = ownedBoards.length + sharedBoards.length;
+    
+    // Check board limit (only for free and pro users)
+    if (limits.boards !== -1 && totalBoards >= limits.boards) {
+      toast({
+        variant: 'destructive',
+        title: 'Board Limit Reached',
+        description: `Your plan is limited to ${limits.boards} board${limits.boards > 1 ? 's' : ''}. Upgrade for more boards.`,
+      });
+      return;
+    }
+    
+    setIsAddBoardOpen(true);
   };
 
   const handleOpenEditBoardDialog = (board: Board) => {
@@ -779,7 +811,7 @@ const handleAddBoard = async (boardData: Omit<Board, 'id' | 'createdAt' | 'owner
 
   const renderContent = () => {
     if (ownedBoards.length === 0 && sharedBoards.length === 0 && invitations.length === 0) {
-      return <NoBoards onAddBoardClick={() => setIsAddBoardOpen(true)} />;
+      return <NoBoards onAddBoardClick={handleOpenAddBoardDialog} />;
     }
 
     if (isDataLoading) {
@@ -893,7 +925,7 @@ const handleAddBoard = async (boardData: Omit<Board, 'id' | 'createdAt' | 'owner
         <SidebarContent>
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton onClick={() => setIsAddBoardOpen(true)}>
+              <SidebarMenuButton onClick={handleOpenAddBoardDialog}>
                 <PlusCircle />
                 <span>New Board</span>
               </SidebarMenuButton>
@@ -919,7 +951,9 @@ const handleAddBoard = async (boardData: Omit<Board, 'id' | 'createdAt' | 'owner
             </SidebarGroup>
           )}
         </SidebarContent>
-        <SidebarFooter></SidebarFooter>
+        <SidebarFooter>
+          <SubscriptionStatus />
+        </SidebarFooter>
       </Sidebar>
       <SidebarInset>
         <div className="flex min-h-screen w-full flex-col">

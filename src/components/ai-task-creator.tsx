@@ -1,11 +1,13 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Sparkles, Loader2 } from 'lucide-react';
+import { Sparkles, Loader2, Crown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { useSubscription } from '@/hooks/use-subscription';
+import { CheckoutButton } from '@/components/checkout-button';
 import { CreateTasksFromPromptOutput } from '@/ai/flows/create-tasks-from-prompt';
 
 interface AiTaskCreatorProps {
@@ -16,6 +18,9 @@ export function AiTaskCreator({ onCreateTasks }: AiTaskCreatorProps) {
     const [prompt, setPrompt] = useState('');
     const [isGenerating, startGenerationTransition] = useTransition();
     const { toast } = useToast();
+    const { hasFeature } = useSubscription();
+
+    const canUseAI = hasFeature('ai_task_creation');
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -48,6 +53,29 @@ export function AiTaskCreator({ onCreateTasks }: AiTaskCreatorProps) {
             }
         });
     };
+    
+    if (!canUseAI) {
+        return (
+            <Card className="shadow-sm border-dashed">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2 font-headline text-muted-foreground">
+                        <Crown className="h-6 w-6 text-yellow-500" />
+                        <span>AI Task Creation</span>
+                    </CardTitle>
+                    <CardDescription>
+                        Upgrade to Pro to generate tasks automatically with AI. 
+                        Save time by describing what you need and let AI create structured tasks for you.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <CheckoutButton plan="pro" billingInterval="monthly">
+                        <Crown className="mr-2 h-4 w-4" />
+                        Upgrade to Pro
+                    </CheckoutButton>
+                </CardContent>
+            </Card>
+        );
+    }
     
     return (
         <Card className="shadow-sm">

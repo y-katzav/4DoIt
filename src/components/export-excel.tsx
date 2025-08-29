@@ -1,11 +1,19 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { Download, FileSpreadsheet } from 'lucide-react';
+import { Download, FileSpreadsheet, Crown } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import type { Task, Category, BoardMember } from '@/lib/types';
 import { format } from 'date-fns';
 import { useI18n } from '@/hooks/use-i18n';
+import { useSubscription } from '@/hooks/use-subscription';
+import { CheckoutButton } from '@/components/checkout-button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface ExportExcelProps {
   tasks: Task[];
@@ -16,6 +24,9 @@ interface ExportExcelProps {
 
 export function ExportExcel({ tasks, categories, boardMembers, boardName }: ExportExcelProps) {
   const { t } = useI18n();
+  const { hasFeature } = useSubscription();
+
+  const canExportAdvanced = hasFeature('advanced_export');
   
   const exportToExcel = async () => {
     // Create a new workbook and worksheet
@@ -42,49 +53,28 @@ export function ExportExcel({ tasks, categories, boardMembers, boardName }: Expo
       pattern: 'solid',
       fgColor: { argb: '4472C4' }
     };
-    headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
 
-    // Add data rows
-    tasks.forEach((task, index) => {
+    // Add tasks data
+    tasks.forEach((task) => {
       const category = categories.find(c => c.id === task.categoryId);
-      const assignee = boardMembers.find(m => m.uid === task.assigneeUid);
+      const assignee = task.assigneeUid ? 
+        boardMembers.find(m => m.uid === task.assigneeUid)?.email || 'Unknown' : 
+        'Unassigned';
       
-      const row = worksheet.addRow({
+      worksheet.addRow({
         description: task.description,
-        category: category?.name || t('common.unknown'),
-        priority: t(`priority.${task.priority}`),
-        status: task.completed ? t('task.completed') : t('task.pending'),
-        dueDate: task.dueDate ? format(task.dueDate, 'dd/MM/yyyy') : '',
-        assignee: assignee?.email || '',
+        category: category?.name || 'Uncategorized',
+        priority: task.priority,
+        status: task.completed ? t('common.completed') : t('common.pending'),
+        dueDate: task.dueDate ? format(new Date(task.dueDate), 'yyyy-MM-dd') : '',
+        assignee: assignee,
         hasAttachment: task.fileUrl ? t('common.yes') : t('common.no'),
         attachmentName: task.fileName || ''
       });
+    });
 
-      // Apply conditional formatting based on task status and priority
-      if (task.completed) {
-        // Green background for completed tasks
-        row.fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: 'C6EFCE' }
-        };
-      } else if (task.priority === 'high') {
-        // Light red background for high priority pending tasks
-        row.fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: 'FFC7CE' }
-        };
-      } else if (task.priority === 'medium') {
-        // Light yellow background for medium priority pending tasks
-        row.fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: 'FFEB9C' }
-        };
-      }
-
-      // Add borders to all cells
+    // Auto-fit columns and add borders
+    worksheet.eachRow((row, rowNumber) => {
       row.eachCell({ includeEmpty: false }, (cell) => {
         cell.border = {
           top: { style: 'thin' },
@@ -95,17 +85,17 @@ export function ExportExcel({ tasks, categories, boardMembers, boardName }: Expo
       });
     });
 
-    // Add borders to header cells
+    // Style header row borders
     headerRow.eachCell((cell) => {
       cell.border = {
-        top: { style: 'thin' },
-        left: { style: 'thin' },
-        bottom: { style: 'thin' },
-        right: { style: 'thin' }
+        top: { style: 'medium' },
+        left: { style: 'medium' },
+        bottom: { style: 'medium' },
+        right: { style: 'medium' }
       };
     });
 
-    // Generate filename with current date
+    // Generate filename with timestamp
     const now = new Date();
     const dateStr = format(now, 'yyyy-MM-dd_HH-mm');
     const filename = `${boardName}_Tasks_${dateStr}.xlsx`;
@@ -117,26 +107,93 @@ export function ExportExcel({ tasks, categories, boardMembers, boardName }: Expo
     });
     
     // Create download link
-    const url = window.URL.createObjectURL(blob);
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
     link.download = filename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
+    URL.revokeObjectURL(url);
   };
 
+  const exportBasic = async () => {
+    // Simple CSV-style export for free users
+    const csvContent = tasks.map(task => {
+      const category = categories.find(c => c.id === task.categoryId);
+      return [
+        `"${task.description}"`,
+        `"${category?.name || 'Uncategorized'}"`,
+        `"${task.priority}"`,
+        `"${task.completed ? 'Completed' : 'Pending'}"`
+      ].join(',');
+    }).join('\n');
+
+    const header = 'Description,Category,Priority,Status\n';
+    const blob = new Blob([header + csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${boardName}-tasks.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  if (!canExportAdvanced) {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            disabled={tasks.length === 0}
+          >
+            <Download className="h-4 w-4" />
+            Export
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuItem onClick={exportBasic}>
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV (Free)
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <CheckoutButton plan="pro" billingInterval="monthly" className="w-full justify-start p-2 h-auto">
+              <Crown className="mr-2 h-4 w-4" />
+              Export Excel (Pro)
+            </CheckoutButton>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
+
   return (
-    <Button
-      onClick={exportToExcel}
-      variant="outline"
-      size="sm"
-      className="gap-2"
-      disabled={tasks.length === 0}
-    >
-      <FileSpreadsheet className="h-4 w-4" />
-      {t('common.exportToExcel')}
-    </Button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-2"
+          disabled={tasks.length === 0}
+        >
+          <Download className="h-4 w-4" />
+          Export
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent>
+        <DropdownMenuItem onClick={exportBasic}>
+          <Download className="mr-2 h-4 w-4" />
+          Export CSV
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={exportToExcel}>
+          <FileSpreadsheet className="mr-2 h-4 w-4" />
+          Export Excel (Pro)
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

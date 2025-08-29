@@ -2,7 +2,8 @@
 
 import { Logo } from '@/components/logo';
 import { Button } from './ui/button';
-import { LogOut, PlusCircle, Moon, Sun, Monitor, Share2, BarChart3 } from 'lucide-react';
+import { LogOut, PlusCircle, Moon, Sun, Monitor, Share2, BarChart3, CreditCard, User } from 'lucide-react';
+import Link from 'next/link';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -139,6 +140,19 @@ export function Header({
                   </DropdownMenuSubContent>
                 </DropdownMenuPortal>
               </DropdownMenuSub>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/profile">
+                  <User className="mr-2 h-4 w-4" />
+                  <span>Profile</span>
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/billing">
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  <span>Billing</span>
+                </Link>
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={onSignOut}>
                 <LogOut className="mr-2 h-4 w-4" />
