@@ -89,7 +89,9 @@ An AI-powered task management application with team collaboration features and s
 git clone https://github.com/y-katzav/4DoIt.git
 cd 4DoIt
 git checkout google-signin
-./scripts/setup-local.sh
+
+# Windows: run setup-local.bat
+# Mac/Linux: run ./scripts/setup-local.sh
 ```
 
 **📋 For detailed local setup:** See [LOCAL_SETUP.md](./LOCAL_SETUP.md)  

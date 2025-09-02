@@ -1,5 +1,12 @@
 # הגדרה לוקלית של 4DoIt על המחשב שלך
 
+## ⚠️ חשוב לקרוא לפני התחלה!
+
+**המדריך הזה מיועד להרצה על המחשב המקומי שלך, לא ב-GitHub Codespaces!**
+
+🏠 **איפה להריץ:** במסוף/טרמינל של המחשב שלך (Windows/Mac/Linux)  
+🚫 **לא להריץ:** ב-Codespaces browser terminal  
+
 ## למה להריץ לוקלית?
 - 🚫 ללא מגבלות iframe/cookies של Codespaces
 - ⚡ ביצועים מהירים יותר
@@ -15,7 +22,46 @@
 ## שלבי ההתקנה
 
 ### 1. שכפול הפרויקט
+**🏠 בטרמינל של המחשב שלך (לא ב-Codespaces!):**
+
+#### Windows (PowerShell/CMD):
+```cmd
+# נווט לתיקייה שבה אתה רוצה לשמור את הפרויקט
+cd C:\Users\YourName\Projects  # או כל תיקייה אחרת
+
+# שכפל את הפרויקט
+git clone https://github.com/y-katzav/4DoIt.git
+cd 4DoIt
+
+# עבור לענף הנוכחי (google-signin)
+git checkout google-signin
+
+# הרץ התקנה אוטומטית לWindows
+scripts\setup-local.bat
+```
+
+#### Windows (Git Bash):
 ```bash
+# נווט לתיקייה שבה אתה רוצה לשמור את הפרויקט
+cd /c/Users/YourName/Projects  # או כל תיקייה אחרת
+
+# שכפל את הפרויקט
+git clone https://github.com/y-katzav/4DoIt.git
+cd 4DoIt
+
+# עבור לענף הנוכחי (google-signin)
+git checkout google-signin
+
+# הרץ התקנה אוטומטית
+./scripts/setup-local.sh
+```
+
+#### Mac/Linux:
+```bash
+# פתח Terminal
+# נווט לתיקייה שבה אתה רוצה לשמור את הפרויקט
+cd ~/Projects  # או כל תיקייה אחרת
+
 # שכפל את הפרויקט
 git clone https://github.com/y-katzav/4DoIt.git
 cd 4DoIt
@@ -25,16 +71,45 @@ git checkout google-signin
 ```
 
 ### 2. התקנת תלויות
+**🏠 עדיין בטרמינל של המחשב שלך:**
+
 ```bash
+# וודא שאתה בתיקיית הפרויקט
+pwd  # צריך להראות משהו כמו: /path/to/4DoIt
+
+# התקן את כל התלויות
 npm install
 ```
 
-### 3. הגדרת משתני סביבה
-צור קובץ `.env.local` בתיקיית השורש:
+**אם אין לך Node.js:**
+- Windows: הורד מ-[nodejs.org](https://nodejs.org)
+- Mac: `brew install node` או מ-[nodejs.org](https://nodejs.org)
+- Linux: `sudo apt install nodejs npm` או מ-[nodejs.org](https://nodejs.org)
 
+### 3. הגדרת משתני סביבה
+**🏠 עדיין בטרמינל של המחשב שלך:**
+
+#### Windows (CMD/PowerShell):
+```cmd
+# העתק את קובץ הדוגמה
+copy .env.example .env.local
+```
+
+#### Windows (Git Bash):
+```bash
+# אם אתה משתמש ב-Git Bash
+cp .env.example .env.local
+```
+
+#### Mac/Linux:
 ```bash
 cp .env.example .env.local
 ```
+
+**לחלופין - ידנית:**
+1. העתק את הקובץ `.env.example`
+2. שנה את השם ל-`.env.local`
+3. פתח את `.env.local` בעורך טקסט
 
 ערוך את `.env.local` עם הנתונים שלך:
 
@@ -107,11 +182,19 @@ npm run create-paypal-plans
 או צור באופן ידני דרך PayPal API.
 
 ### 6. הרצת השרת
+**🏠 בטרמינל של המחשב שלך:**
+
 ```bash
+# וודא שאתה בתיקיית הפרויקט
+cd 4DoIt  # אם אתה לא שם כבר
+
+# הרץ את השרת
 npm run dev
 ```
 
 האפליקציה תהיה זמינה ב: `http://localhost:3000`
+
+**🔴 חשוב:** פתח בדפדפן **על המחשב שלך**, לא ב-Codespaces!
 
 ## בדיקת הפונקציונליות
 

@@ -44,7 +44,16 @@ echo "✅ Dependencies הותקנו בהצלחה"
 if [ ! -f .env.local ]; then
     echo ""
     echo "🔧 יוצר .env.local..."
-    cp .env.example .env.local
+    
+    # בדיקה אם זה Windows (Git Bash)
+    if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "win32" ]]; then
+        # Windows עם Git Bash
+        cp .env.example .env.local 2>/dev/null || copy .env.example .env.local
+    else
+        # Mac/Linux
+        cp .env.example .env.local
+    fi
+    
     echo "✅ .env.local נוצר מ-.env.example"
     echo ""
     echo "⚠️  חשוב: ערוך את .env.local עם הנתונים שלך:"
