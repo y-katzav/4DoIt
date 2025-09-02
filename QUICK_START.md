@@ -9,7 +9,18 @@
 ### 1️⃣ שכפול והתקנה
 **פתח טרמינל על המחשב שלך:**
 
-#### Windows (PowerShell/CMD):
+#### Windows (PowerShell/CMD) - פשוט ומהיר:
+```cmd
+cd C:\Users\YourName\Projects  # בחר תיקייה
+git clone https://github.com/y-katzav/4DoIt.git
+cd 4DoIt
+git checkout google-signin
+npm install
+copy .env.example .env.local
+echo "עכשיו ערוך את .env.local ואז הרץ: npm run dev"
+```
+
+#### Windows (עם סקריפט אוטומטי):
 ```cmd
 cd C:\Users\YourName\Projects  # בחר תיקייה
 git clone https://github.com/y-katzav/4DoIt.git
@@ -92,6 +103,19 @@ npm run typecheck
 ---
 
 ## 🆘 בעיות נפוצות
+
+### Windows: "The system cannot find the file specified"
+```cmd
+# הרץ ידנית במקום הסקריפט:
+npm install
+copy .env.example .env.local
+```
+
+### Windows: "'cp' is not recognized"
+```cmd
+# השתמש ב-copy במקום cp:
+copy .env.example .env.local
+```
 
 ### Firebase Error
 ```bash

@@ -36,8 +36,15 @@ cd 4DoIt
 # עבור לענף הנוכחי (google-signin)
 git checkout google-signin
 
-# הרץ התקנה אוטומטית לWindows
+# הרץ התקנה אוטומטית לWindows (אחרי שהקבצים הורדו!)
 scripts\setup-local.bat
+```
+
+**אם הסקריפט לא נמצא:** הרץ ידנית:
+```cmd
+npm install
+copy .env.example .env.local
+npm run check-system
 ```
 
 #### Windows (Git Bash):
@@ -214,6 +221,28 @@ npm run dev
 - בדוק שהיצירה עובדת
 
 ## פתרון בעיות נפוצות
+
+### שגיאת Windows: "The system cannot find the file specified"
+**הסיבה:** הקובץ לא קיים עדיין במחשב שלך.
+
+**פתרון:**
+```cmd
+# וודא שאתה בתיקיית הפרויקט
+cd 4DoIt
+dir  # צריך להראות את התיקיות src, scripts וכו'
+
+# אם אין תיקיית scripts - הרץ ידנית:
+npm install
+copy .env.example .env.local
+```
+
+### שגיאת 'cp' ב-Windows
+**הסיבה:** `cp` זו פקודת Linux/Mac.
+
+**פתרון Windows:**
+```cmd
+copy .env.example .env.local
+```
 
 ### שגיאת Firebase
 ```
