@@ -33,31 +33,32 @@ export default function ProfilePage() {
   useEffect(() => {
     const handlePayPalReturn = async () => {
       const paymentStatus = searchParams.get('payment');
-      const orderId = searchParams.get('token'); // PayPal returns order ID as 'token'
+      const subscriptionId = searchParams.get('subscription_id'); // PayPal returns subscription ID
+      const token = searchParams.get('token'); // Sometimes PayPal returns token
       
-      if (paymentStatus === 'success' && orderId && user) {
+      if (paymentStatus === 'success' && (subscriptionId || token) && user) {
         setPaymentProcessing(true);
         try {
-          const token = await user.getIdToken();
+          const userToken = await user.getIdToken();
           const response = await fetch('/api/capture-paypal-payment', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
+              'Authorization': `Bearer ${userToken}`,
             },
-            body: JSON.stringify({ orderId }),
+            body: JSON.stringify({ subscriptionId: subscriptionId || token }),
           });
           
           if (response.ok) {
             const data = await response.json();
-            console.log('Payment captured successfully:', data);
+            console.log('Subscription activated successfully:', data);
             // Remove URL parameters
             window.history.replaceState({}, '', '/profile');
           } else {
-            console.error('Failed to capture payment');
+            console.error('Failed to activate subscription');
           }
         } catch (error) {
-          console.error('Error capturing payment:', error);
+          console.error('Error activating subscription:', error);
         } finally {
           setPaymentProcessing(false);
         }

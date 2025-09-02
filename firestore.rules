@@ -130,6 +130,7 @@ service cloud.firestore {
       // קריאה מותרת רק למשתמש עצמו
       allow read: if isSignedIn() && request.auth.uid == userId;
       
+      // עדכון מותר רק למשתמש עצמו
       allow update: if isSignedIn() && request.auth.uid == userId;
       allow delete: if isSignedIn() && request.auth.uid == userId;
       

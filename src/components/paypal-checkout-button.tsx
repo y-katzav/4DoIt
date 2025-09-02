@@ -34,6 +34,8 @@ export function PayPalCheckoutButton({
     try {
       const token = await user.getIdToken();
       
+      console.log('Creating PayPal subscription with:', { plan, billingInterval });
+      
       const response = await fetch('/api/create-paypal-subscription', {
         method: 'POST',
         headers: {
@@ -48,21 +50,25 @@ export function PayPalCheckoutButton({
         }),
       });
 
+      console.log('Response status:', response.status);
       const data = await response.json();
+      console.log('Response data:', data);
       
       if (data.approvalUrl) {
-        // Redirect to PayPal for payment
+        // Redirect to PayPal for subscription approval
         window.location.href = data.approvalUrl;
       } else if (data.message) {
         // Handle mock/free plan
         console.log(data.message);
         router.push('/profile?payment=success');
       } else {
-        throw new Error('Failed to create PayPal order');
+        console.error('No approval URL received:', data);
+        throw new Error(data.error || 'Failed to create PayPal subscription');
       }
     } catch (error) {
       console.error('Checkout error:', error);
-      alert('Failed to start checkout process. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      alert(`Failed to start checkout process: ${errorMessage}`);
     } finally {
       setLoading(false);
     }

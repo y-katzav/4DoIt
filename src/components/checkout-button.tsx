@@ -26,53 +26,9 @@ export function CheckoutButton({
   const { user } = useAuth();
 
   const handleCheckout = async () => {
-    if (!user) {
-      // Redirect to login
-      window.location.href = '/login';
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      // Get user token
-      const token = await user.getIdToken();
-
-      // Create checkout session
-      const response = await fetch('/api/create-checkout-session', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          plan,
-          billingInterval,
-          successUrl: `${window.location.origin}/dashboard?success=true&plan=${plan}`,
-          cancelUrl: `${window.location.origin}/pricing?canceled=true`,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to create checkout session');
-      }
-
-      const data = await response.json();
-      
-      // Handle mock response
-      if (data.message) {
-        alert(`Demo mode: ${data.message}`);
-        return;
-      }
-      
-      // Redirect to Stripe Checkout
-      window.location.href = data.url;
-    } catch (error) {
-      console.error('Checkout error:', error);
-      alert('Failed to initiate checkout. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
+    // Show deprecation warning and redirect to PayPal
+    alert('⚠️ DEPRECATED: This button uses Stripe which has been replaced with PayPal. Please use PayPal checkout buttons instead. Test at: /paypal-test');
+    window.location.href = '/paypal-test';
   };
 
   return (
@@ -98,66 +54,23 @@ export function CheckoutButton({
   );
 }
 
-// Hook for subscription management
+// Hook for subscription management (DEPRECATED - Use PayPal subscription management)
 export function useSubscription() {
   const { user } = useAuth();
   const [subscription, setSubscription] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  // This would fetch user subscription data from Firestore
-  // Implementation depends on your Firebase setup
+  // This hook is deprecated - PayPal subscription management should be used instead
+  console.warn('⚠️ DEPRECATED: useSubscription hook uses Stripe. Use PayPal subscription management instead.');
 
   const cancelSubscription = async () => {
-    if (!user || !subscription?.stripeSubscriptionId) return;
-
-    try {
-      const token = await user.getIdToken();
-      
-      const response = await fetch('/api/cancel-subscription', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          subscriptionId: subscription.stripeSubscriptionId,
-        }),
-      });
-
-      if (response.ok) {
-        // Refresh subscription data
-        // setSubscription updated data
-      }
-    } catch (error) {
-      console.error('Cancel subscription error:', error);
-    }
+    alert('⚠️ DEPRECATED: This function uses Stripe. Please use PayPal subscription management instead.');
+    return;
   };
 
   const updateSubscription = async (newPlan: PlanType, newBillingInterval: BillingInterval) => {
-    if (!user || !subscription?.stripeSubscriptionId) return;
-
-    try {
-      const token = await user.getIdToken();
-      
-      const response = await fetch('/api/update-subscription', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          subscriptionId: subscription.stripeSubscriptionId,
-          newPlan,
-          newBillingInterval,
-        }),
-      });
-
-      if (response.ok) {
-        // Refresh subscription data
-      }
-    } catch (error) {
-      console.error('Update subscription error:', error);
-    }
+    alert('⚠️ DEPRECATED: This function uses Stripe. Please use PayPal subscription management instead.');
+    return;
   };
 
   return {

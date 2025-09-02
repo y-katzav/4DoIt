@@ -70,14 +70,33 @@ An AI-powered task management application with team collaboration features and s
 
 ### Backend & Database
 - **Firebase** - Authentication & Firestore
-- **Stripe** - Payment processing
+- **PayPal Subscriptions API** - Payment processing (replaces Stripe)
 - **Vercel** - Hosting & deployment
 
 ### AI Integration
 - **Google Genkit** - AI framework
 - **Custom AI flows** - Task generation
 
+### Development
+- **Local Development** - Recommended for full control and PayPal testing
+- **GitHub Codespaces** - Cloud development (with iframe limitations for PayPal)
+
 ## 📦 Installation
+
+### 🚀 Quick Local Setup
+```bash
+# Clone and run locally (recommended for full control)
+git clone https://github.com/y-katzav/4DoIt.git
+cd 4DoIt
+git checkout google-signin
+./scripts/setup-local.sh
+```
+
+**📋 For detailed local setup:** See [LOCAL_SETUP.md](./LOCAL_SETUP.md)  
+**⚡ For quick start:** See [QUICK_START.md](./QUICK_START.md)
+
+### 🌐 Alternative: Codespaces
+If you prefer cloud development:
 
 1. Clone the repository:
 ```bash
@@ -110,10 +129,16 @@ FIREBASE_ADMIN_PROJECT_ID=your_project_id
 FIREBASE_ADMIN_CLIENT_EMAIL=your_service_account_email
 FIREBASE_ADMIN_PRIVATE_KEY=your_private_key
 
-# Stripe Configuration
-STRIPE_SECRET_KEY=your_stripe_secret_key
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
-STRIPE_WEBHOOK_SECRET=your_webhook_secret
+# PayPal Configuration (Sandbox)
+PAYPAL_CLIENT_ID=your_paypal_sandbox_client_id
+PAYPAL_CLIENT_SECRET=your_paypal_sandbox_client_secret
+NEXT_PUBLIC_PAYPAL_CLIENT_ID=your_paypal_sandbox_client_id
+PAYPAL_WEBHOOK_ID=your_webhook_id
+
+# PayPal Plan IDs (Create using: npm run create-paypal-plans)
+PAYPAL_PRO_MONTHLY_PLAN_ID=P-XXXXXXXXXXXXXXX
+PAYPAL_BUSINESS_MONTHLY_PLAN_ID=P-YYYYYYYYYYYYYYY
+PAYPAL_ENTERPRISE_MONTHLY_PLAN_ID=P-ZZZZZZZZZZZZZZZ
 
 # AI Configuration (Optional)
 GOOGLE_GENAI_API_KEY=your_genai_api_key
@@ -126,18 +151,19 @@ npm run dev
 
 ## 🔧 Configuration
 
+### PayPal Setup (Replaces Stripe)
+1. Create PayPal Developer account
+2. Set up Sandbox App in "My Apps & Credentials"
+3. Get Client ID and Client Secret
+4. Create subscription plans using: `npm run create-paypal-plans`
+5. Configure webhook endpoint: `/api/webhooks/paypal`
+
 ### Firebase Setup
 1. Create a Firebase project
 2. Enable Authentication with Google provider
 3. Set up Firestore database
 4. Configure storage bucket
 5. Download service account key
-
-### Stripe Setup
-1. Create Stripe account
-2. Set up products and prices
-3. Configure webhook endpoint: `/api/webhooks/stripe`
-4. Copy webhook secret and API keys
 
 ### AI Setup (Optional)
 1. Get Google AI API key
@@ -182,18 +208,33 @@ npm run dev
 
 ## 🧪 Testing
 
-Run tests:
+### System Check
 ```bash
+# Check configuration and dependencies
+npm run check-system
+```
+
+### PayPal Testing
+```bash
+# Check PayPal configuration
+npm run check-paypal
+
+# Create PayPal subscription plans
+npm run create-paypal-plans
+
+# Test PayPal locally (no iframe restrictions)
+# Visit: http://localhost:3000/paypal-test
+```
+
+### Development
+```bash
+# Run tests
 npm test
-```
 
-Type checking:
-```bash
-npm run type-check
-```
+# Type checking
+npm run typecheck
 
-Linting:
-```bash
+# Linting
 npm run lint
 ```
 
