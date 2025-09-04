@@ -55,8 +55,25 @@ export function PayPalCheckoutButton({
       console.log('Response data:', data);
       
       if (data.approvalUrl) {
-        // Redirect to PayPal for subscription approval
-        window.location.href = data.approvalUrl;
+        // Check if we're in Codespaces or have CSP issues
+        const isCodespaces = window.location.hostname.includes('github.dev');
+        
+        if (isCodespaces) {
+          // Open in new window for Codespaces
+          const paypalWindow = window.open(
+            data.approvalUrl,
+            'paypal_checkout',
+            'width=800,height=600,scrollbars=yes,resizable=yes'
+          );
+          
+          if (!paypalWindow) {
+            // Fallback to direct redirect if popup blocked
+            window.location.href = data.approvalUrl;
+          }
+        } else {
+          // Normal redirect for local/production
+          window.location.href = data.approvalUrl;
+        }
       } else if (data.message) {
         // Handle mock/free plan
         console.log(data.message);

@@ -24,6 +24,24 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: [
+              "img-src 'self' data: blob: https:",
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.paypal.com https://www.sandbox.paypal.com https://js.paypal.com https://www.facebook.com https://connect.facebook.net",
+              "connect-src 'self' https://www.paypal.com https://api.paypal.com https://www.sandbox.paypal.com https://api.sandbox.paypal.com https://www.facebook.com https://graph.facebook.com",
+              "frame-src 'self' https://www.paypal.com https://www.sandbox.paypal.com https://js.paypal.com https://www.facebook.com"
+            ].join('; ')
+          }
+        ],
+      },
+    ]
+  },
 };
 
 export default nextConfig;
