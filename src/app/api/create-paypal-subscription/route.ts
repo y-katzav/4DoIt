@@ -179,6 +179,12 @@ export async function POST(request: NextRequest) {
 
     console.log('📤 Sending subscriptionData to PayPal:', JSON.stringify(subscriptionData, null, 2));
 
+    console.log('🌐 PayPal Request Details:', {
+      url: `${PAYPAL_BASE}/v1/billing/subscriptions`,
+      environment: isLive ? 'LIVE' : 'SANDBOX',
+      paypalBase: PAYPAL_BASE
+    });
+
     const subResp = await fetch(`${PAYPAL_BASE}/v1/billing/subscriptions`, {
       method: 'POST',
       headers: {
@@ -190,13 +196,26 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(subscriptionData),
     });
 
+    console.log('📥 PayPal Response Status:', subResp.status, subResp.statusText);
+
     const subJson = await readJsonSafe(subResp);
+    
+    console.log('📋 PayPal Full Response:', {
+      status: subResp.status,
+      statusText: subResp.statusText,
+      headers: Object.fromEntries(subResp.headers.entries()),
+      body: subJson
+    });
+    
     if (!subResp.ok) {
       console.error('PayPal subscription failed:', subResp.status, safeSlice(JSON.stringify(subJson)));
       return J(502, {
         error: 'PayPal subscription failed',
         status: subResp.status,
+        statusText: subResp.statusText,
         bodyPreview: safeSlice(JSON.stringify(subJson)),
+        // הוסף פירוט מPayPal אם קיים
+        paypalError: (subJson as any)?.details || (subJson as any)?.message || 'Unknown PayPal error'
       });
     }
 

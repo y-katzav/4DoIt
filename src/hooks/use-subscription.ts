@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/components/auth-provider';
 import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { ensureUserSubscriptionFields } from '@/lib/user-migration';
 
 export interface Subscription {
   id: string;
@@ -29,13 +30,37 @@ export function useSubscription() {
       return;
     }
 
+    // Ensure user has subscription fields before listening to changes
+    const setupUser = async () => {
+      await ensureUserSubscriptionFields(user.uid);
+    };
+    
+    setupUser();
+
     const unsubscribe = onSnapshot(
       doc(db, 'users', user.uid),
       (doc) => {
         if (doc.exists()) {
           const data = doc.data();
+          
+          // Check if it's the old structure (data.subscription) or new structure (direct fields)
           if (data.subscription) {
+            // Old Stripe-style structure
             setSubscription(data.subscription);
+          } else if (data.plan) {
+            // New PayPal structure - map to Subscription interface
+            setSubscription({
+              id: data.paypalSubscriptionId || 'free',
+              plan: data.plan || 'free',
+              status: data.subscriptionStatus || 'active',
+              billingInterval: data.billingInterval || 'monthly',
+              currentPeriodStart: data.subscriptionStartDate?.toMillis() || Date.now(),
+              currentPeriodEnd: data.subscriptionEndDate?.toMillis() || Date.now() + (30 * 24 * 60 * 60 * 1000),
+              cancelAtPeriodEnd: false,
+              customerId: data.paypalSubscriptionId || '',
+              createdAt: data.subscriptionStartDate?.toMillis() || data.createdAt?.toMillis() || Date.now(),
+              updatedAt: data.updatedAt?.toMillis() || Date.now()
+            });
           } else {
             // Default free plan
             setSubscription({

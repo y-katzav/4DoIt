@@ -47,6 +47,8 @@ service cloud.firestore {
 
       allow create: if isSignedIn()
         && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerId != null
+        && request.auth.uid != null
         && (!('members' in request.resource.data) || request.resource.data.members is map)
         && (!('sharedWith' in request.resource.data) || request.resource.data.sharedWith is map);
 

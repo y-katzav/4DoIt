@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getAuth, createUserWithEmailAndPassword, User } from 'firebase/auth';
 import { firebaseApp, db } from '@/lib/firebase';
@@ -13,45 +13,68 @@ import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { Logo } from '@/components/logo';
 import { boardIcons } from '@/lib/constants';
+import { useAuth } from '@/components/auth-provider';
 
-/**
- * Creates default user data, a board, categories, and tasks for a new user.
- * Throws errors for invalid input or Firestore failures.
- * Returns the created board ID.
- */
+/*
+// Legacy client-side createDefaultData function - now replaced with server-side API
+// Keeping for reference in case we need to revert
 const createDefaultData = async (user: User): Promise<string> => {
   if (!user.email || !user.uid) throw new Error('User email or UID missing.');
+
+  console.log('🔄 Creating default data for user:', user.uid);
+  console.log('🔄 User email:', user.email);
 
   // Validate board icon
   if (!boardIcons || !boardIcons.length) throw new Error('No board icons available');
 
-  // Step 1: Create user document (ללא boardMemberships כי זה תת-אוסף)
-  await setDoc(doc(db, 'users', user.uid), {
-    email: user.email,
-    displayName: user.displayName || user.email.split('@')[0],
-    createdAt: Timestamp.now(),
-  });
+  try {
+    // Step 1: Create user document with default subscription fields
+    console.log('📝 Creating user document...');
+    await setDoc(doc(db, 'users', user.uid), {
+      email: user.email,
+      displayName: user.displayName || user.email.split('@')[0],
+      createdAt: Timestamp.now(),
+      // Subscription fields - initialized as free user
+      plan: 'free',
+      billingInterval: null,
+      subscriptionStatus: 'free',
+      paymentStatus: null,
+      subscriptionStartDate: null,
+      subscriptionEndDate: null,
+      paypalSubscriptionId: null,
+      pendingPlan: null,
+      pendingBillingInterval: null,
+      lastPaymentDate: null,
+      updatedAt: Timestamp.now(),
+    });
+    console.log('✅ User document created');
 
-  // Step 2: Prepare batch setup
-  const batch = writeBatch(db);
-  const boardRef = doc(collection(db, 'boards'));
-  batch.set(boardRef, {
-    name: 'My Tasks',
-    icon: boardIcons[0],
-    createdAt: Timestamp.now(),
-    ownerId: user.uid,
-    members: { [user.uid]: 'owner' },
-    sharedWith: {}, // יוצר שדה sharedWith ריק
-  });
+    // Step 2: Prepare batch setup
+    console.log('📋 Preparing batch operations...');
+    const batch = writeBatch(db);
+    const boardRef = doc(collection(db, 'boards'));
+    
+    console.log('🏗️ Creating board with ID:', boardRef.id);
+    console.log('👤 Board owner:', user.uid);
+    
+    batch.set(boardRef, {
+      name: 'My Tasks',
+      icon: boardIcons[0],
+      createdAt: Timestamp.now(),
+      ownerId: user.uid,
+      members: { [user.uid]: 'owner' },
+      sharedWith: {}, // יוצר שדה sharedWith ריק
+    });
 
-  // Step 2.5: Add board membership to user's subcollection
-  const membershipRef = doc(db, 'users', user.uid, 'boardMemberships', boardRef.id);
-  batch.set(membershipRef, {
-    boardId: boardRef.id,
-    boardName: 'My Tasks',
-    role: 'owner',
-    joinedAt: Timestamp.now(),
-  });
+    // Step 2.5: Add board membership to user's subcollection
+    const membershipRef = doc(db, 'users', user.uid, 'boardMemberships', boardRef.id);
+    batch.set(membershipRef, {
+      boardId: boardRef.id,
+      boardName: 'My Tasks',
+      role: 'owner',
+      joinedAt: Timestamp.now(),
+    });
+    console.log('🤝 Board membership prepared');
 
   // Categories
   const categories = [
@@ -113,44 +136,119 @@ const createDefaultData = async (user: User): Promise<string> => {
     });
   });
 
+  console.log('🚀 Executing batch commit...');
   try {
     await batch.commit();
+    console.log('✅ Batch committed successfully!');
   } catch (err) {
-    // You might want to log with more context, e.g., user UID
-    console.error('Error committing batch for user:', user.uid, err);
+    console.error('❌ Error committing batch for user:', user.uid);
+    console.error('❌ Error details:', err);
+    console.error('❌ User object:', { uid: user.uid, email: user.email });
     // Optionally: report to error tracking service
     throw err;
   }
 
+  console.log('🎉 Default data creation completed for user:', user.uid);
   // Return board ID for caller use
   return boardRef.id;
+} catch (error} catch (error) {
+  console.error('💥 Critical error in createDefaultData:', error);
+  throw error;
+}
 };
+*/
 
 export default function SignUpPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isCreatingData, setIsCreatingData] = useState(false);
+  const [setupProgress, setSetupProgress] = useState('');
   const router = useRouter();
   const { toast } = useToast();
   const auth = getAuth(firebaseApp);
+  const { setSignupFlow } = useAuth();
+
+  // Cleanup signup flow state on component unmount
+  useEffect(() => {
+    return () => {
+      setSignupFlow(false);
+    };
+  }, [setSignupFlow]);
 
   const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
+    
     try {
+      // Start signup flow - this prevents AuthProvider redirects
+      setSignupFlow(true);
+      
+      setSetupProgress('Creating your account...');
+      
+      // Step 1: Create the user account
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      await createDefaultData(userCredential.user);
-
-      toast({
-        title: 'Account Created',
-        description: 'You have been successfully signed up. Please log in.',
+      
+      // Step 2: Get token while user is still authenticated
+      const userToken = await userCredential.user.getIdToken();
+      
+      // Step 3: Switch to setup UI (keep user signed in)
+      setIsLoading(false);
+      setIsCreatingData(true);
+      
+      // Step 5: Create default data via API
+      setSetupProgress('Setting up your workspace...');
+      console.log('🔄 Creating default data via API for user:', userCredential.user.uid);
+      
+      const response = await fetch('/api/create-default-data', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${userToken}`,
+        },
       });
-      router.push('/login');
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Failed to create default data: ${errorData.error}`);
+      }
+      
+      const result = await response.json();
+      console.log('✅ Default data created successfully:', result);
+      
+      // Step 6: Show progress updates
+      setSetupProgress('Creating your first board...');
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      setSetupProgress('Adding sample tasks...');
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      setSetupProgress('Finalizing setup...');
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      console.log('✅ Setup complete for user:', userCredential.user.uid);
+      
+      // Step 7: Complete setup and redirect to home (user is already signed in)
+      setIsCreatingData(false);
+      setSignupFlow(false); // End signup flow
+      toast({
+        title: 'Welcome to 4DoIt! 🎉',
+        description: 'Your account is ready! Welcome to your personalized dashboard.',
+      });
+      
+      // Navigate directly to home - user is already authenticated
+      router.push('/');
+      
     } catch (error) {
       let errorMessage = 'An unexpected error occurred.';
       if (error instanceof Error) {
         errorMessage = error.message;
       }
+      console.error('❌ Signup error:', error);
+      
+      setIsCreatingData(false);
+      setSignupFlow(false); // End signup flow on error
+      
       toast({
         variant: 'destructive',
         title: 'Sign Up Failed',
@@ -160,6 +258,42 @@ export default function SignUpPage() {
       setIsLoading(false);
     }
   };
+
+  // Show setup screen while creating default data
+  if (isCreatingData) {
+    return (
+      <div className="flex min-h-screen w-full items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md shadow-lg">
+          <CardHeader className="text-center">
+            <div className='flex justify-center mb-4'>
+              <Logo />
+            </div>
+            <CardTitle className="text-2xl font-bold">Setting Up Your Account</CardTitle>
+            <CardDescription>We're preparing your personalized workspace...</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="flex flex-col items-center space-y-4">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+              <p className="text-base font-medium text-center">
+                {setupProgress}
+              </p>
+              <div className="w-full bg-muted rounded-full h-3">
+                <div className="bg-primary h-3 rounded-full transition-all duration-700 animate-pulse" style={{ width: '75%' }}></div>
+              </div>
+            </div>
+            <div className="space-y-2 text-center">
+              <p className="text-sm text-muted-foreground">
+                ✨ Creating your first board with sample tasks
+              </p>
+              <p className="text-xs text-muted-foreground">
+                This usually takes less than 10 seconds
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen w-full items-center justify-center bg-background p-4">

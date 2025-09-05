@@ -26,6 +26,35 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Suppress PayPal RUM errors */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              // Suppress PayPal RUM 404 errors
+              const originalConsoleError = console.error;
+              console.error = function(...args) {
+                const message = args.join(' ');
+                if (message.includes('paypalobjects.com') || 
+                    message.includes('cdn-cgi/rum') ||
+                    message.includes('404 (Not Found)') && message.includes('paypal')) {
+                  return; // Suppress PayPal RUM errors
+                }
+                originalConsoleError.apply(console, args);
+              };
+              
+              // Also suppress network errors for PayPal RUM
+              window.addEventListener('error', function(e) {
+                if (e.message && e.message.includes('paypalobjects.com')) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  return false;
+                }
+              });
+            `,
+          }}
+        />
+      </head>
       <body className={cn("font-body antialiased", ptSans.variable)}>
         <ThemeProvider
           attribute="class"

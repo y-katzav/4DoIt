@@ -19,15 +19,71 @@ import {
   BarChart3,
   Users,
   FolderOpen,
-  CheckSquare
+  CheckSquare,
+  PlusCircle
 } from 'lucide-react';
 import Link from 'next/link';
+import { Header } from '@/components/header';
+import { Logo } from '@/components/logo';
+import {
+  SidebarProvider,
+  Sidebar,
+  SidebarRail,
+  SidebarInset,
+  SidebarHeader,
+  SidebarContent,
+  SidebarFooter,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarSeparator,
+  SidebarGroup,
+  SidebarGroupLabel,
+} from '@/components/ui/sidebar';
+import { getAuth, signOut } from 'firebase/auth';
+import { firebaseApp } from '@/lib/firebase';
+import { useRouter } from 'next/navigation';
+import { SubscriptionStatus } from '@/components/subscription-status';
 
 export default function ProfilePage() {
   const { user } = useAuth();
   const { subscription, loading, hasFeature, getLimits } = useSubscription();
   const searchParams = useSearchParams();
   const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const router = useRouter();
+  const auth = getAuth(firebaseApp);
+  
+  // Development helper - only show in development mode
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  const [migrationLoading, setMigrationLoading] = useState(false);
+  
+  const handleEnsureUserFields = async () => {
+    if (!user) return;
+    
+    setMigrationLoading(true);
+    try {
+      const userToken = await user.getIdToken();
+      const response = await fetch('/api/ensure-user-fields', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${userToken}`,
+        },
+      });
+      
+      if (response.ok) {
+        console.log('✅ User fields migration completed');
+        // Force reload to see changes
+        window.location.reload();
+      } else {
+        console.error('❌ Failed to migrate user fields');
+      }
+    } catch (error) {
+      console.error('Error migrating user fields:', error);
+    } finally {
+      setMigrationLoading(false);
+    }
+  };
 
   // Handle PayPal return
   useEffect(() => {
@@ -37,6 +93,14 @@ export default function ProfilePage() {
       const token = searchParams.get('token'); // Sometimes PayPal returns token
       
       if (paymentStatus === 'success' && (subscriptionId || token) && user) {
+        // Prevent duplicate processing by checking if we've already processed this subscription
+        const processedKey = `paypal_processed_${subscriptionId || token}`;
+        if (sessionStorage.getItem(processedKey)) {
+          console.log('Already processed this subscription, skipping...');
+          window.history.replaceState({}, '', '/profile');
+          return;
+        }
+        
         setPaymentProcessing(true);
         try {
           const userToken = await user.getIdToken();
@@ -52,10 +116,20 @@ export default function ProfilePage() {
           if (response.ok) {
             const data = await response.json();
             console.log('Subscription activated successfully:', data);
+            // Mark as processed
+            sessionStorage.setItem(processedKey, 'true');
             // Remove URL parameters
             window.history.replaceState({}, '', '/profile');
           } else {
-            console.error('Failed to activate subscription');
+            const errorData = await response.json();
+            console.error('Failed to activate subscription:', errorData);
+            
+            // If it's already processed (400 with no pending plan), treat as success
+            if (response.status === 400 && errorData.error === 'No pending plan found') {
+              console.log('Subscription already processed, treating as success');
+              sessionStorage.setItem(processedKey, 'true');
+              window.history.replaceState({}, '', '/profile');
+            }
           }
         } catch (error) {
           console.error('Error activating subscription:', error);
@@ -71,6 +145,15 @@ export default function ProfilePage() {
 
     handlePayPalReturn();
   }, [searchParams, user]);
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+      router.push('/login');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
 
   if (loading || paymentProcessing) {
     return (
@@ -109,9 +192,63 @@ export default function ProfilePage() {
   const limits = getLimits();
 
   return (
-    <div className="container mx-auto py-8">
-      <div className="max-w-4xl mx-auto space-y-8">
-        {/* Header */}
+    <SidebarProvider>
+      <SidebarRail />
+      <Sidebar>
+        <SidebarHeader>
+          <Logo />
+        </SidebarHeader>
+        <SidebarContent>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton onClick={() => router.push('/')}>
+                <FolderOpen />
+                <span>Back to Boards</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+          <SidebarSeparator />
+          
+          <SidebarGroup>
+            <SidebarGroupLabel>Profile</SidebarGroupLabel>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton>
+                  <User />
+                  <span>Account Settings</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton>
+                  <Crown />
+                  <span>Subscription</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroup>
+        </SidebarContent>
+        <SidebarFooter>
+          <SubscriptionStatus />
+        </SidebarFooter>
+      </Sidebar>
+      <SidebarInset>
+        <div className="flex min-h-screen w-full flex-col">
+          <Header
+            onAddTaskClick={() => {}} // Not used in profile
+            onSignOut={handleSignOut}
+            onShareClick={() => {}} // Not used in profile
+            onStatsClick={() => {}} // Not used in profile
+            isBoardSelected={false}
+            isReadOnly={true}
+            invitations={[]}
+            onInvitationAction={() => {}}
+            tasks={[]}
+            categories={[]}
+            boardMembers={[]}
+            boardName="Profile"
+          />
+          <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8 container mx-auto">
+            <div className="max-w-4xl mx-auto space-y-8 w-full">{/* Header */}
         <div>
           <h1 className="text-3xl font-bold">Profile</h1>
           <p className="text-muted-foreground mt-2">
@@ -191,6 +328,16 @@ export default function ProfilePage() {
                   <ArrowUpCircle className="mr-2 h-4 w-4" />
                   Upgrade to Pro
                 </PayPalCheckoutButton>
+              )}
+              {isDevelopment && (
+                <Button 
+                  variant="outline" 
+                  onClick={handleEnsureUserFields}
+                  disabled={migrationLoading}
+                  className="ml-2"
+                >
+                  {migrationLoading ? 'Migrating...' : '🔧 Dev: Fix User Fields'}
+                </Button>
               )}
             </div>
           </CardContent>
@@ -314,7 +461,10 @@ export default function ProfilePage() {
             </div>
           </CardContent>
         </Card>
-      </div>
-    </div>
+            </div>
+          </main>
+        </div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
 import { firebaseApp } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
@@ -17,8 +17,19 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const auth = getAuth(firebaseApp);
+
+  // Show welcome message if coming from successful signup
+  useEffect(() => {
+    if (searchParams.get('signup') === 'success') {
+      toast({
+        title: 'Account Created Successfully! 🎉',
+        description: 'Welcome to 4DoIt! Please log in to access your personalized dashboard.',
+      });
+    }
+  }, [searchParams, toast]);
 
   const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();

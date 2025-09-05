@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, db } from '@/lib/firebase-admin';
+import { ensureUserSubscriptionFieldsAdmin } from '@/lib/user-migration';
 
 export async function POST(request: NextRequest) {
   try {
@@ -63,6 +64,13 @@ export async function POST(request: NextRequest) {
 
     const subscriptionData = await subscriptionResponse.json();
     
+    console.log('🔍 PayPal subscription details:', JSON.stringify({
+      id: subscriptionData.id,
+      status: subscriptionData.status,
+      plan_id: subscriptionData.plan_id,
+      billing_info: subscriptionData.billing_info
+    }, null, 2));
+    
     if (subscriptionData.status === 'ACTIVE') {
       console.log('✅ PayPal subscription is ACTIVE, updating user...');
       
@@ -81,6 +89,12 @@ export async function POST(request: NextRequest) {
         if (!userDoc.exists) {
           return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
+        
+        // Ensure user has all required subscription fields (for legacy users)
+        await ensureUserSubscriptionFieldsAdmin(userId, db);
+        
+        // Re-fetch user document after potential update
+        userDoc = await db.collection('users').doc(userId).get();
       } catch (dbError: any) {
         console.error('❌ Database authentication error:', dbError.message);
         console.log('🔄 Falling back to mock success response');
@@ -95,11 +109,65 @@ export async function POST(request: NextRequest) {
       }
 
       const userData = userDoc.data()!;
-      const pendingPlan = userData.pendingPlan;
-      const pendingBillingInterval = userData.pendingBillingInterval;
+      let pendingPlan = userData.pendingPlan;
+      let pendingBillingInterval = userData.pendingBillingInterval;
+      const currentSubscriptionId = userData.paypalSubscriptionId;
       
+      // If this subscription is already processed, return success
+      if (currentSubscriptionId === subscriptionId && userData.subscriptionStatus === 'active') {
+        console.log('✅ Subscription already processed successfully, returning existing data');
+        return NextResponse.json({ 
+          status: 'ACTIVE',
+          plan: userData.plan,
+          billingInterval: userData.billingInterval,
+          message: 'Subscription already active'
+        });
+      }
+      
+      // After ensuring fields exist, pendingPlan and pendingBillingInterval should be available
+      // If they're still null, it means this is a direct activation without going through the checkout flow
       if (!pendingPlan || !pendingBillingInterval) {
-        return NextResponse.json({ error: 'No pending plan found' }, { status: 400 });
+        console.log('⚠️ No pending plan found after field migration - deriving from PayPal data');
+        
+        // Try to derive plan from PayPal subscription plan_id
+        const paypalPlanId = subscriptionData.plan_id;
+        console.log('🔍 PayPal Plan ID:', paypalPlanId);
+        
+        if (paypalPlanId) {
+          // Map PayPal plan IDs to our plans based on the structure from paypal.ts
+          if (paypalPlanId.includes('pro') || paypalPlanId.includes('PRO') || paypalPlanId.includes('mock-pro')) {
+            pendingPlan = 'pro';
+          } else if (paypalPlanId.includes('business') || paypalPlanId.includes('BUSINESS') || paypalPlanId.includes('mock-business')) {
+            pendingPlan = 'business';
+          } else if (paypalPlanId.includes('enterprise') || paypalPlanId.includes('ENTERPRISE') || paypalPlanId.includes('mock-enterprise')) {
+            pendingPlan = 'enterprise';
+          } else {
+            pendingPlan = 'pro'; // Default fallback
+          }
+          
+          // Check if it's annual or monthly based on plan ID
+          if (paypalPlanId.includes('annual') || paypalPlanId.includes('ANNUAL')) {
+            pendingBillingInterval = 'annual';
+          } else if (paypalPlanId.includes('monthly') || paypalPlanId.includes('MONTHLY')) {
+            pendingBillingInterval = 'monthly';
+          } else {
+            pendingBillingInterval = 'monthly'; // Default fallback
+          }
+        } else {
+          // Final fallback for development: assume pro monthly
+          console.log('⚠️ No PayPal plan ID found, using default (pro/monthly)');
+          pendingPlan = 'pro';
+          pendingBillingInterval = 'monthly';
+        }
+        
+        console.log('🔄 Derived plan info:', { pendingPlan, pendingBillingInterval });
+        
+        // Update the user document with the pending fields for this transaction
+        await userDoc.ref.update({
+          pendingPlan: pendingPlan,
+          pendingBillingInterval: pendingBillingInterval,
+          updatedAt: new Date(),
+        });
       }
 
       // Calculate subscription end date

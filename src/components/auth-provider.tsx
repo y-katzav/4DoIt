@@ -8,16 +8,29 @@ import { usePathname, useRouter } from 'next/navigation';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  isSignupFlow: boolean;
+  setSignupFlow: (isSignup: boolean) => void;
 }
 
-const AuthContext = createContext<AuthContextType>({ user: null, loading: true });
+const AuthContext = createContext<AuthContextType>({ 
+  user: null, 
+  loading: true, 
+  isSignupFlow: false,
+  setSignupFlow: () => {}
+});
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isSignupFlow, setIsSignupFlow] = useState(false);
   const auth = getAuth(firebaseApp);
   const router = useRouter();
   const pathname = usePathname();
+
+  const setSignupFlow = (isSignup: boolean) => {
+    console.log('🔄 Signup flow state changed:', isSignup);
+    setIsSignupFlow(isSignup);
+  };
 
   useEffect(() => {
     // התחבר ל-emulators בפיתוח רק אם מוגדר במשתני סביבה
@@ -48,7 +61,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   useEffect(() => {
-    if (!loading) {
+    if (!loading && !isSignupFlow) {
       const isAuthPage = pathname === '/login' || pathname === '/signup';
 
       if (!user && !isAuthPage) {
@@ -56,12 +69,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         router.push('/login');
       }
 
-      if (user && isAuthPage) {
+      if (user && isAuthPage && pathname === '/login') {
+        // Only redirect from login page if user is authenticated
+        // Don't redirect from signup page during the signup flow
         console.log('➡️ Redirecting to home - user already logged in');
         router.push('/');
       }
+    } else if (isSignupFlow) {
+      console.log('🔄 Signup flow active - skipping auth redirects');
     }
-  }, [user, loading, pathname, router]);
+  }, [user, loading, pathname, router, isSignupFlow]);
 
   useEffect(() => {
     // בדיקה ישירה של currentUser אם צריך
@@ -77,7 +94,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading }}>
+    <AuthContext.Provider value={{ user, loading, isSignupFlow, setSignupFlow }}>
       {children}
     </AuthContext.Provider>
   );
