@@ -14,14 +14,39 @@ import {
   AlertCircle, 
   CheckCircle,
   X,
-  ArrowUpCircle
+  ArrowUpCircle,
+  FolderOpen,
+  User
 } from 'lucide-react';
 import type { PlanType, BillingInterval } from '@/lib/stripe';
+import { Header } from '@/components/header';
+import { Logo } from '@/components/logo';
+import {
+  SidebarProvider,
+  Sidebar,
+  SidebarRail,
+  SidebarInset,
+  SidebarHeader,
+  SidebarContent,
+  SidebarFooter,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarSeparator,
+  SidebarGroup,
+  SidebarGroupLabel,
+} from '@/components/ui/sidebar';
+import { getAuth, signOut } from 'firebase/auth';
+import { firebaseApp } from '@/lib/firebase';
+import { useRouter } from 'next/navigation';
+import { SubscriptionStatus } from '@/components/subscription-status';
 
 export default function BillingPage() {
   const { user } = useAuth();
   const { subscription, loading, cancelSubscription } = useSubscription();
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const router = useRouter();
+  const auth = getAuth(firebaseApp);
 
   if (loading) {
     return (
@@ -62,10 +87,73 @@ export default function BillingPage() {
     setShowCancelConfirm(false);
   };
 
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+      router.push('/login');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
+
   return (
-    <div className="container mx-auto py-8">
-      <div className="max-w-4xl mx-auto space-y-8">
-        {/* Header */}
+    <SidebarProvider>
+      <SidebarRail />
+      <Sidebar>
+        <SidebarHeader>
+          <Logo />
+        </SidebarHeader>
+        <SidebarContent>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton onClick={() => router.push('/')}>
+                <FolderOpen />
+                <span>Back to Boards</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+          <SidebarSeparator />
+          
+          <SidebarGroup>
+            <SidebarGroupLabel>Billing</SidebarGroupLabel>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton>
+                  <CreditCard />
+                  <span>Subscription</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton onClick={() => router.push('/profile')}>
+                  <User />
+                  <span>Profile</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroup>
+        </SidebarContent>
+        <SidebarFooter>
+          <SubscriptionStatus />
+        </SidebarFooter>
+      </Sidebar>
+      <SidebarInset>
+        <div className="flex min-h-screen w-full flex-col">
+          <Header
+            onAddTaskClick={() => {}} // Not used in billing
+            onSignOut={handleSignOut}
+            onShareClick={() => {}} // Not used in billing
+            onStatsClick={() => {}} // Not used in billing
+            isBoardSelected={false}
+            isReadOnly={true}
+            invitations={[]}
+            onInvitationAction={() => {}}
+            tasks={[]}
+            categories={[]}
+            boardMembers={[]}
+            boardName="Billing"
+          />
+          <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8 container mx-auto">
+            <div className="max-w-4xl mx-auto space-y-8 w-full">{/* Header */}
         <div>
           <h1 className="text-3xl font-bold">Billing & Subscription</h1>
           <p className="text-muted-foreground mt-2">
@@ -255,7 +343,10 @@ export default function BillingPage() {
             </div>
           </CardContent>
         </Card>
-      </div>
-    </div>
+            </div>
+          </main>
+        </div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }
