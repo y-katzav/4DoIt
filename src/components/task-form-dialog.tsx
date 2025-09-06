@@ -6,7 +6,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { CalendarIcon, Sparkles, Loader2, ChevronsUpDown, Check, UploadCloud, X, File as FileIcon, Pencil, User as UserIcon } from 'lucide-react';
 import { format } from 'date-fns';
-import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { firebaseApp, db } from '@/lib/firebase';
+import { safeDeleteFileStrict } from '@/lib/storage-utils';
 import { getAuth } from 'firebase/auth';
 import type { User } from 'firebase/auth';
 
@@ -168,9 +170,12 @@ export function TaskFormDialog({
             // If there's an existing file, delete it first
             const currentFileUrl = form.getValues('fileUrl');
             if (currentFileUrl) {
-                const storage = getStorage(firebaseApp);
-                const oldFileRef = ref(storage, currentFileUrl);
-                await deleteObject(oldFileRef);
+                try {
+                    await safeDeleteFileStrict(currentFileUrl);
+                } catch (deleteError) {
+                    console.error("Error deleting old file:", deleteError);
+                    // Don't fail the upload just because we couldn't delete the old file
+                }
             }
 
             const storage = getStorage(firebaseApp);
@@ -203,9 +208,7 @@ export function TaskFormDialog({
     const fileUrl = form.getValues('fileUrl');
     if (fileUrl) {
       try {
-        const storage = getStorage(firebaseApp);
-        const fileRef = ref(storage, fileUrl);
-        await deleteObject(fileRef);
+        await safeDeleteFileStrict(fileUrl);
         form.setValue('fileUrl', '');
         form.setValue('fileName', '');
         toast({
@@ -215,9 +218,9 @@ export function TaskFormDialog({
       } catch (error) {
         console.error("Error removing file:", error);
         toast({
-            variant: 'destructive',
-            title: "Removal Failed",
-            description: "There was an error removing your file.",
+          variant: 'destructive',
+          title: "Removal Failed",
+          description: "There was an error removing your file. Please try again.",
         });
       }
     }
